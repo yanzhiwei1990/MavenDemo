@@ -83,6 +83,7 @@ public class TcpClient {
 	
 	public void startListen() {
 		Log.PrintLog(TAG, "startListen");
+		isRunning = true;
 		mExecutorService.submit(mStartListener);
 		if (mClientCallback != null) {
 			mClientCallback.onClientConnect(this, null);
