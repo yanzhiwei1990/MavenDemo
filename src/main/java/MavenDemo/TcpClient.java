@@ -8,6 +8,9 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import org.json.JSONObject;
@@ -27,6 +30,7 @@ public class TcpClient {
 	private BufferedWriter mSocketWriter = null;
 	private JSONObject mClientInfomation = null;
 	private boolean isRunning = false;
+	private List<TransferServer> mTransferServers = new ArrayList<TransferServer>();
 	
 	private Runnable mStartListener = new Runnable() {
 
@@ -51,7 +55,7 @@ public class TcpClient {
 					try {
 					    while ((inMsg = mSocketReader.readLine()) != null) {
 					    	Log.PrintLog(TAG, "Received from  client: " + inMsg);
-					    	outMsg = inMsg;
+					    	outMsg = dealCommand(inMsg);
 					    	mSocketWriter.write(outMsg);
 					    	mSocketWriter.write("\n");
 					    	mSocketWriter.flush();
@@ -188,5 +192,115 @@ public class TcpClient {
 			Log.PrintError(TAG, "closeSocket Exception = " + e.getMessage());
 			mClientSocket = null;
 		}
+	}
+	
+	private void addTransferServer(TransferServer server) {
+		mTransferServers.add(server);
+	}
+	
+	private void removeTransferServer(TransferServer server) {
+		mTransferServers.remove(server);
+	}
+	
+	private String dealCommand(String data) {
+		String result = "unknown";
+		String command = null;
+		JSONObject obj = null;
+		if (data != null) {
+			try {
+				obj = new JSONObject(data);
+			} catch (Exception e) {
+				Log.PrintError(TAG, "dealCommand new JSONObject Exception = " + e.getMessage());
+			}
+			if (obj != null && obj.length() > 0) {
+				try {
+					command = obj.getString("command");
+				} catch (Exception e) {
+					Log.PrintError(TAG, "dealCommand getString command Exception = " + e.getMessage());
+				}
+				switch (command) {
+					case "information":
+						result = parseInformation(obj);
+						break;
+					case "startnewserver":
+						result = parseStartNewServer(obj);
+						break;
+					case "status":
+						result = parseStatus(obj);
+						break;
+					default:
+						break;
+				}
+			}
+		}
+		return result;
+	}
+	
+	private String parseInformation(JSONObject data) {
+		String result = "unknown";
+		if (data != null && data.length() > 0) {
+			mClientInfomation = data;
+			try {
+				result = "parseInformation_" + mClientInfomation.getString("name") + "_ok";
+			} catch (Exception e) {
+				Log.PrintError(TAG, "parseInformation getString name Exception = " + e.getMessage());
+			}
+		}
+		return result;
+	}
+	
+	private String parseStartNewServer(JSONObject data) {
+		String result = "unknown";
+		String address = null;
+		int port = -1;
+		if (data != null && data.length() > 0) {
+			try {
+				address = mClientInfomation.getString("address");
+			} catch (Exception e) {
+				Log.PrintError(TAG, "parseStartNewServer getString address Exception = " + e.getMessage());
+			}
+			try {
+				port = mClientInfomation.getInt("port");
+			} catch (Exception e) {
+				Log.PrintError(TAG, "parseStartNewServer getString port Exception = " + e.getMessage());
+			}
+			if (address != null && address.length() > 0 && port != -1) {
+				if (!isTransferServerExist(address, port)) {
+					result = "parseStartNewServer_" + address + ":" + port + "_ok";
+					TransferServer transferServer = new TransferServer(address, port);
+					transferServer.startServer();
+				} else {
+					result = "parseStartNewServer_" + address + ":" + port + "_exist_ok";
+					Log.PrintLog(TAG, "parseStartNewServer exist server = " + address + ":" + port);
+				}
+			}
+		}
+		return result;
+	}
+	
+	private boolean isTransferServerExist(String address, int port) {
+		boolean result = false;
+		Iterator<TransferServer> iterator = mTransferServers.iterator();
+		TransferServer transferServer = null;
+		while (iterator.hasNext()) {
+			transferServer = (TransferServer)iterator.next();
+			if (transferServer.getAddress().equals(address) && transferServer.getPort() == port) {
+				result = true;
+				break;
+			}
+		}
+		return result;
+	}
+	
+	private String parseStatus(JSONObject data) {
+		String result = "unknown";
+		if (data != null && data.length() > 0) {
+			try {
+				result = "parseStatus_" + mClientInfomation.getString("status") + "_ok";
+			} catch (Exception e) {
+				Log.PrintError(TAG, "parseStatus getString status Exception = " + e.getMessage());
+			}
+		}
+		return result;
 	}
 }

@@ -48,6 +48,7 @@ public class TcpServer {
 				TcpClient tcpClient = null;
 				try {
 					tcpClient = new TcpClient(mExecutorService, mServerSocket.accept());
+					tcpClient.setClientCallback(mClientCallback);
 					tcpClient.startListen();
 				} catch (IOException e) {
 					Log.PrintError(TAG, "startServer accept Exception = " + e.getMessage());
