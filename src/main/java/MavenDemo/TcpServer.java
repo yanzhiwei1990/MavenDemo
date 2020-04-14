@@ -99,10 +99,12 @@ public class TcpServer {
 	}
 	
 	private void addTcpClient(TcpClient client) {
+		Log.PrintLog(TAG, "addTcpClient = " + client.getClientInformation());
 		mTcpClients.add(client);
 	}
 	
 	private void removeTcpClient(TcpClient client) {
+		Log.PrintLog(TAG, "removeTcpClient = " + client.getClientInformation());
 		mTcpClients.remove(client);
 	}
 	

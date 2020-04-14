@@ -16,6 +16,8 @@ import java.util.concurrent.Executors;
 
 import org.json.JSONObject;
 
+import MavenDemo.TcpClient.TransferServerCallback;
+
 public class TransferServer {
 	
 	private static final String TAG = TransferServer.class.getSimpleName() + " : %s\n";
@@ -27,6 +29,7 @@ public class TransferServer {
 	private ExecutorService mExecutorService = null;
 	private boolean isServerRuning = false;
 	private List<TransferClient> mTransferClients = new ArrayList<TransferClient>();
+	private TransferServerCallback mTransferServerCallback = null;
 	private ClientCallback mClientCallback = new ClientCallback() {
 		
 		public void onClientDisconnect(TransferClient client, JSONObject data) {
@@ -47,6 +50,9 @@ public class TransferServer {
 			while (isServerRuning) {
 				TransferClient transferClient = null;
 				try {
+					if (mTransferServerCallback != null) {
+						mTransferServerCallback.onTransferServerConnect(TransferServer.this, null);
+					}
 					transferClient = new TransferClient(mExecutorService, mServerSocket.accept());
 					transferClient.setClientCallback(mClientCallback);
 					transferClient.startListen();
@@ -56,6 +62,9 @@ public class TransferServer {
 			}
 			Log.PrintLog(TAG, "startServer stop accept");
 			dealClearWork();
+			if (mTransferServerCallback != null) {
+				mTransferServerCallback.onTransferServerDisconnect(TransferServer.this, null);
+			}
 		}
 	};
 	
@@ -63,6 +72,10 @@ public class TransferServer {
 		mTcpAddress = address;
 		mTcpPort = port;
 		mExecutorService = Executors.newFixedThreadPool(MAX_THREAD);
+	}
+	
+	public void setClientCallback(TransferServerCallback callback) {
+		mTransferServerCallback = callback;
 	}
 	
 	public  void startServer() {
@@ -107,10 +120,12 @@ public class TransferServer {
 	}
 	
 	private void addTransferClient(TransferClient client) {
+		Log.PrintLog(TAG, "addTransferClient = " + client.getClientInformation());
 		mTransferClients.add(client);
 	}
 	
 	private void removeTransferClient(TransferClient client) {
+		Log.PrintLog(TAG, "removeTransferClient = " + client.getClientInformation());
 		mTransferClients.remove(client);
 	}
 	

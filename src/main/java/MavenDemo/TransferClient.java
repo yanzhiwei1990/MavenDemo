@@ -1,5 +1,7 @@
 package MavenDemo;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -8,6 +10,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.Socket;
+import java.nio.charset.Charset;
 import java.util.concurrent.ExecutorService;
 
 import org.json.JSONObject;
@@ -23,9 +26,10 @@ public class TransferClient {
 	private ExecutorService mExecutorService = null;
 	private InputStream mInputStream = null;
 	private OutputStream mOutputStream = null;
-	private BufferedReader mSocketReader = null;
-	private BufferedWriter mSocketWriter = null;
-	private JSONObject mClientInfomation = null;
+	private BufferedInputStream mSocketReader = null;
+	private BufferedOutputStream mSocketWriter = null;
+	private JSONObject mClientInfomation = null;//add mac address as name
+	private JSONObject mClientStatus = null;//online offline
 	private boolean isRunning = false;
 	
 	private Runnable mStartListener = new Runnable() {
@@ -43,18 +47,31 @@ public class TransferClient {
 				Log.PrintError(TAG, "accept getOutputStream Exception = " + e.getMessage());
 			}
 			if (mInputStream != null && mOutputStream != null) {
-				mSocketReader = new BufferedReader(new InputStreamReader(mInputStream));
-				mSocketWriter = new BufferedWriter(new OutputStreamWriter(mOutputStream));
 				String inMsg = null;
 				String outMsg = null;
+				byte[] buffer = new byte[1024 * 1024];
+				int length = -1;
+				mSocketReader = new BufferedInputStream(mInputStream, buffer.length);
+				mSocketWriter = new BufferedOutputStream(mOutputStream, buffer.length);
+
 				while (isRunning) {
 					try {
-					    while ((inMsg = mSocketReader.readLine()) != null) {
-					    	Log.PrintLog(TAG, "Received from  client: " + inMsg);
-					    	outMsg = dealCommand(inMsg);
-					    	mSocketWriter.write(outMsg);
-					    	mSocketWriter.write("\n");
-					    	mSocketWriter.flush();
+					    while ((length = mSocketReader.read(buffer, 0, buffer.length)) != -1) {
+					    	if (length <= 100) {
+					    		try {
+					    			inMsg = new String(buffer, 0, length, Charset.forName("UTF-8")).trim();
+								} catch (Exception e) {
+									inMsg = null;
+									Log.PrintError(TAG, "parse first 100 bytes error");
+								}
+					    		Log.PrintLog(TAG, "Received from  client: " + inMsg);
+					    		outMsg = dealCommand(inMsg);
+					    		if (!"unknown".equals(outMsg)) {
+					    			sendMessage(outMsg);
+					    		}
+					    	} else {
+					    		outMsg = "unknown";
+					    	}
 					    }
 					    Log.PrintLog(TAG, "startListener disconnect");
 					   
@@ -111,6 +128,21 @@ public class TransferClient {
 		return mClientInfomation;
 	}
 	
+	private void sendMessage(String outMsg) {
+		try {
+			if (mSocketWriter != null && outMsg != null && outMsg.length() > 0) {
+				byte[] send = (outMsg + "\n").getBytes(Charset.forName("UTF-8"));
+				mSocketWriter.write(send, 0, send.length);
+		    	mSocketWriter.flush();
+			}
+		} catch (Exception e) {
+			Log.PrintError(TAG, "sendMessage Exception = " + e.getMessage());
+		}
+	}
+	
+	/*
+	 * transfer server need to recognize request client and response client
+	*/
 	private String dealCommand(String data) {
 		String result = "unknown";
 		String command = null;
@@ -131,11 +163,8 @@ public class TransferClient {
 					case "information":
 						result = parseInformation(obj);
 						break;
-					case "startnewserver":
-						
-						break;
 					case "status":
-						
+						result = parseStatus(obj);
 						break;
 					default:
 						break;
@@ -148,9 +177,12 @@ public class TransferClient {
 	private String parseInformation(JSONObject data) {
 		String result = "unknown";
 		if (data != null && data.length() > 0) {
-			mClientInfomation = data;
+			mClientInfomation = data.getJSONObject("information");
 			try {
 				result = "parseInformation_" + mClientInfomation.getString("name") + "_ok";
+				if (mClientCallback != null) {
+					mClientCallback.onClientConnect(TransferClient.this, mClientInfomation);
+				}
 			} catch (Exception e) {
 				Log.PrintError(TAG, "parseInformation getString name Exception = " + e.getMessage());
 			}
@@ -158,23 +190,14 @@ public class TransferClient {
 		return result;
 	}
 	
-	private String parseStartNewServer(JSONObject data) {
+	private String parseStatus(JSONObject data) {
 		String result = "unknown";
-		String address = null;
-		int port = -1;
 		if (data != null && data.length() > 0) {
+			mClientStatus = data.getJSONObject("status");
 			try {
-				address = mClientInfomation.getString("address");
+				result = "parseStatus_" + mClientStatus.getString("status") + "_ok";
 			} catch (Exception e) {
-				Log.PrintError(TAG, "parseStartNewServer getString address Exception = " + e.getMessage());
-			}
-			try {
-				port = mClientInfomation.getInt("port");
-			} catch (Exception e) {
-				Log.PrintError(TAG, "parseStartNewServer getString port Exception = " + e.getMessage());
-			}
-			if (address != null && address.length() > 0 && port != -1) {
-				
+				Log.PrintError(TAG, "parseStatus getString status Exception = " + e.getMessage());
 			}
 		}
 		return result;

@@ -8,6 +8,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.Socket;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -28,9 +29,31 @@ public class TcpClient {
 	private OutputStream mOutputStream = null;
 	private BufferedReader mSocketReader = null;
 	private BufferedWriter mSocketWriter = null;
-	private JSONObject mClientInfomation = null;
+	private JSONObject mClientInfomation = null;//add mac address as name
 	private boolean isRunning = false;
 	private List<TransferServer> mTransferServers = new ArrayList<TransferServer>();
+	
+	private TransferServerCallback mTransferServerCallback = new TransferServerCallback() {
+
+		@Override
+		public void onTransferServerConnect(TransferServer server, JSONObject data) {
+			addTransferServer(server);
+			if (data != null && data.length() > 0) {
+				data.put("action", "server_started");
+				sendMessage(data.toString());
+			}
+		}
+
+		@Override
+		public void onTransferServerDisconnect(TransferServer server, JSONObject data) {
+			removeTransferServer(server);
+			if (data != null && data.length() > 0) {
+				data.put("action", "server_stopped");
+				sendMessage(data.toString());
+			}
+		}
+		
+	};
 	
 	private Runnable mStartListener = new Runnable() {
 
@@ -47,7 +70,7 @@ public class TcpClient {
 				Log.PrintError(TAG, "accept getOutputStream Exception = " + e.getMessage());
 			}
 			if (mInputStream != null && mOutputStream != null) {
-				mSocketReader = new BufferedReader(new InputStreamReader(mInputStream));
+				mSocketReader = new BufferedReader(new InputStreamReader(mInputStream, Charset.forName("UTF-8")));
 				mSocketWriter = new BufferedWriter(new OutputStreamWriter(mOutputStream));
 				String inMsg = null;
 				String outMsg = null;
@@ -56,9 +79,7 @@ public class TcpClient {
 					    while ((inMsg = mSocketReader.readLine()) != null) {
 					    	Log.PrintLog(TAG, "Received from  client: " + inMsg);
 					    	outMsg = dealCommand(inMsg);
-					    	mSocketWriter.write(outMsg);
-					    	mSocketWriter.write("\n");
-					    	mSocketWriter.flush();
+					    	sendMessage(outMsg);
 					    }
 					    Log.PrintLog(TAG, "startListener disconnect");
 					   
@@ -113,6 +134,18 @@ public class TcpClient {
 	
 	public JSONObject getClientInformation() {
 		return mClientInfomation;
+	}
+	
+	private void sendMessage(String outMsg) {
+		try {
+			if (mSocketWriter != null) {
+				mSocketWriter.write(outMsg);
+		    	mSocketWriter.write("\n");
+		    	mSocketWriter.flush();
+			}
+		} catch (Exception e) {
+			Log.PrintError(TAG, "sendMessage Exception = " + e.getMessage());
+		}
 	}
 	
 	private void dealClearWork() {
@@ -202,6 +235,9 @@ public class TcpClient {
 		mTransferServers.remove(server);
 	}
 	
+	/*
+	 * response client request creat new transfer server
+	*/
 	private String dealCommand(String data) {
 		String result = "unknown";
 		String command = null;
@@ -239,7 +275,7 @@ public class TcpClient {
 	private String parseInformation(JSONObject data) {
 		String result = "unknown";
 		if (data != null && data.length() > 0) {
-			mClientInfomation = data;
+			mClientInfomation = data.getJSONObject("information");
 			try {
 				result = "parseInformation_" + mClientInfomation.getString("name") + "_ok";
 			} catch (Exception e) {
@@ -268,6 +304,7 @@ public class TcpClient {
 				if (!isTransferServerExist(address, port)) {
 					result = "parseStartNewServer_" + address + ":" + port + "_ok";
 					TransferServer transferServer = new TransferServer(address, port);
+					transferServer.setClientCallback(mTransferServerCallback);
 					transferServer.startServer();
 				} else {
 					result = "parseStartNewServer_" + address + ":" + port + "_exist_ok";
@@ -302,5 +339,10 @@ public class TcpClient {
 			}
 		}
 		return result;
+	}
+	
+	public interface TransferServerCallback {
+		void onTransferServerConnect(TransferServer server, JSONObject data);
+		void onTransferServerDisconnect(TransferServer server, JSONObject data);
 	}
 }
