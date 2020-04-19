@@ -9,8 +9,11 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.net.InetAddress;
 import java.net.Socket;
+import java.net.SocketAddress;
 import java.nio.charset.Charset;
+import java.rmi.dgc.Lease;
 import java.util.concurrent.ExecutorService;
 
 import org.json.JSONObject;
@@ -22,6 +25,8 @@ public class TransferClient {
 	public static final String TAG = TransferClient.class.getSimpleName() + " : %s\n";
 	
 	private Socket mClientSocket = null;
+	private TransferClient mDestinationClient = null;
+	private TransferServer mTransferServer = null;
 	private ClientCallback mClientCallback = null;
 	private ExecutorService mExecutorService = null;
 	private InputStream mInputStream = null;
@@ -31,6 +36,10 @@ public class TransferClient {
 	private JSONObject mClientInfomation = null;//add mac address as name
 	private JSONObject mClientStatus = null;//online offline
 	private boolean isRunning = false;
+	private InetAddress mRemoteAddress = null;
+	private InetAddress mLocalAddress = null;
+	private boolean mRecognised = false;
+	private String mClientRole = null;
 	
 	private Runnable mStartListener = new Runnable() {
 
@@ -72,6 +81,46 @@ public class TransferClient {
 					    	} else {
 					    		outMsg = "unknown";
 					    	}
+					    	if (!mRecognised) {
+					    		mRecognised = true;
+					    		parseClientRole(outMsg);
+					    	}
+					    	if ("unknown".equals(outMsg)) {
+					    		//need to transfer
+					    		if ("response".equals(mClientRole)) {
+					    			if (mDestinationClient == null) {
+					    				mDestinationClient = mTransferServer.getTransferClient("request", getRequestClientInetAddress(), getRequestClientPort());
+					    			}
+					    			if (mDestinationClient != null) {
+					    				mDestinationClient.transferBuffer(buffer, 0, length);
+					    			} else {
+					    				Log.PrintLog(TAG, "stop response client as no request client");
+					    				break;
+					    			}
+					    		} else {
+					    			//request client need to wait for respponse client ready
+					    			int count = 0;
+					    			while (mDestinationClient == null) {
+					    				delayMs(20);
+					    				mDestinationClient = mTransferServer.getTransferClient("response", getRemoteInetAddress(), getRemotePort());
+					    				count++;
+					    				if (count > 100) {
+					    					Log.PrintLog(TAG, "wait response client 2s time out");
+					    					break;
+					    				}
+					    			}
+					    			if (count > 100) {
+					    				Log.PrintLog(TAG, "stop request client as time out");
+					    				break;
+					    			}
+					    			if (mDestinationClient != null) {
+					    				mDestinationClient.transferBuffer(buffer, 0, length);
+					    			} else {
+					    				Log.PrintLog(TAG, "stop request client as no response client to transfer buffer");
+					    				break;
+					    			}
+					    		}
+					    	}
 					    }
 					    Log.PrintLog(TAG, "startListener disconnect");
 					   
@@ -89,9 +138,12 @@ public class TransferClient {
 		}
 	};
 	
-	public TransferClient(ExecutorService executor, Socket socket) {
+	public TransferClient(ExecutorService executor, TransferServer transferServer, Socket socket) {
 		mClientSocket = socket;
 		mExecutorService = executor;
+		mTransferServer = transferServer;
+		mRemoteAddress = socket.getInetAddress();
+		mLocalAddress = socket.getLocalAddress();
 	}
 
 	public void setClientCallback(ClientCallback callback) {
@@ -126,6 +178,46 @@ public class TransferClient {
 	
 	public JSONObject getClientInformation() {
 		return mClientInfomation;
+	}
+	
+	public String getRemoteInetAddress() {
+		return mRemoteAddress.getHostAddress();
+	}
+	
+	public int getRemotePort() {
+		return mClientSocket.getPort();
+	}
+	
+	public String getLocalInetAddress() {
+		return mLocalAddress.getHostAddress();
+	}
+	
+	public int getLocalPort() {
+		return mClientSocket.getLocalPort();
+	}
+
+	public String getClientRole() {
+		return mClientRole;
+	}
+	
+	public String getRequestClientInetAddress() {
+		String result = null;
+		try {
+			result = mClientInfomation.getString("request_client_address");
+		} catch (Exception e) {
+			Log.PrintError(TAG, "getRequestClientInetAddress Exception = " + e.getMessage());
+		}
+		return result;
+	}
+	
+	public int getRequestClientPort() {
+		int result = -1;
+		try {
+			result = mClientInfomation.getInt("request_client_port");
+		} catch (Exception e) {
+			Log.PrintError(TAG, "getRequestClientPort Exception = " + e.getMessage());
+		}
+		return result;
 	}
 	
 	private void sendMessage(String outMsg) {
@@ -201,6 +293,45 @@ public class TransferClient {
 			}
 		}
 		return result;
+	}
+	
+	private void delayMs(long ms) {
+		try {
+			Thread.sleep(ms);
+		} catch (Exception e) {
+			// TODO: handle exception
+			Log.PrintError(TAG, "delayMs = " + e.getMessage());
+		}
+	}
+	
+	private void parseClientRole(String mess) {
+		if ("unknown".equals(mess)) {
+			if (mClientRole == null) {
+				mClientRole = "request";
+			}
+		} else if (mess != null && mess.startsWith("parseInformation")) {
+			if (mClientRole == null) {
+				mClientRole = "response";
+			}
+		}
+		switch (mClientRole) {
+    		case "request":
+    			break;
+    		case "response":
+    			break;
+    		default:
+    			break;
+    	}
+	}
+	
+	private void transferBuffer(byte[] buffer, int start, int end) {
+		try {
+			if (mSocketWriter != null) {
+				mSocketWriter.write(buffer, start, end);
+			}
+		} catch (Exception e) {
+			Log.PrintError(TAG, "transferBuffer Exception = " + e.getMessage());
+		}
 	}
 	
 	private void dealClearWork() {

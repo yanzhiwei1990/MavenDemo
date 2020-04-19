@@ -9,6 +9,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -17,6 +19,7 @@ import java.util.concurrent.Executors;
 import org.json.JSONObject;
 
 import MavenDemo.TcpClient.TransferServerCallback;
+import io.netty.channel.unix.Buffer;
 
 public class TransferServer {
 	
@@ -28,7 +31,7 @@ public class TransferServer {
 	private int mTcpPort = -1;
 	private ExecutorService mExecutorService = null;
 	private boolean isServerRuning = false;
-	private List<TransferClient> mTransferClients = new ArrayList<TransferClient>();
+	private List<TransferClient> mTransferClients = /*new ArrayList<TransferClient>();*/Collections.synchronizedList(new ArrayList<TransferClient>());
 	private TransferServerCallback mTransferServerCallback = null;
 	private ClientCallback mClientCallback = new ClientCallback() {
 		
@@ -53,7 +56,7 @@ public class TransferServer {
 					if (mTransferServerCallback != null) {
 						mTransferServerCallback.onTransferServerConnect(TransferServer.this, null);
 					}
-					transferClient = new TransferClient(mExecutorService, mServerSocket.accept());
+					transferClient = new TransferClient(mExecutorService, TransferServer.this, mServerSocket.accept());
 					transferClient.setClientCallback(mClientCallback);
 					transferClient.startListen();
 				} catch (IOException e) {
@@ -128,6 +131,32 @@ public class TransferServer {
 		Log.PrintLog(TAG, "removeTransferClient = " + client.getClientInformation());
 		mTransferClients.remove(client);
 	}
+	
+	public TransferClient getTransferClient(String type, String address, int port) {
+		TransferClient result = null;
+		if (mTransferClients != null && mTransferClients.size() > 0 && address != null && port != -1) {
+			Iterator<TransferClient> iterator = mTransferClients.iterator();
+			TransferClient singleClient = null;
+			String singlerole = null;
+			String singleaddress = null;
+			int singleport = -1;
+			while (iterator.hasNext()) {
+				singleClient = (TransferClient)iterator.next();
+				singlerole = singleClient.getClientRole();
+				singleaddress = singleClient.getRemoteInetAddress();
+				singleport = singleClient.getRemotePort();
+				if (type != null && type.equals(singlerole) && 
+						singleaddress != null && singleaddress.equals(address) &&
+						singleport != -1 && singleport == port) {
+					result = singleClient;
+					break;
+				}
+			}
+		} else {
+			Log.PrintLog(TAG, "getTransferClient empty TransferClientList");
+		}
+		return result;
+	} 
 	
 	private void dealClearWork() {
 		Log.PrintLog(TAG, "closeStream isRunning = " + isServerRuning);
