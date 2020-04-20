@@ -1,0 +1,9 @@
+{"command":"information","information":{"name":"testclient"}}
+
+{"command":"startnewserver","server_info":{"address":"0.0.0.0","port":19909}}
+
+{"command":"command","role":"request","action":"start_connect","address":"0.0.0.0","port":"19909","server_address":"0.0.0.0","server_port":"19909"}
+
+{"command":"information","information":{"name":"testresponse","request_client_address":"127.0.0.1","request_client_port":}}
+
+{"command":"information","information":{"name":"testresponse","request_client_address":"58.246.136.202","request_client_port":62944}}
