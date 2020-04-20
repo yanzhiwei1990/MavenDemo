@@ -10,6 +10,7 @@ import java.io.OutputStreamWriter;
 import java.net.Socket;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -31,7 +32,7 @@ public class TcpClient {
 	private BufferedWriter mSocketWriter = null;
 	private JSONObject mClientInfomation = null;//add mac address as name
 	private boolean isRunning = false;
-	private List<TransferServer> mTransferServers = new ArrayList<TransferServer>();
+	private List<TransferServer> mTransferServers = Collections.synchronizedList(new ArrayList<TransferServer>());
 	
 	private TransferServerCallback mTransferServerCallback = new TransferServerCallback() {
 
@@ -50,6 +51,20 @@ public class TcpClient {
 			if (data != null && data.length() > 0) {
 				data.put("action", "server_stopped");
 				sendMessage(data.toString());
+			}
+		}
+	};
+	
+	private TransferClientCallback mTransferClientCallback = new TransferClientCallback() {
+
+		@Override
+		public void onTransferClientCommand(TransferClient client, JSONObject data) {
+			// TODO Auto-generated method stub
+			Log.PrintLog(TAG, "onTransferClientCommand data = " + data);
+			if (client != null) {
+				if (data != null && data.length() > 0) {
+					sendMessage(data.toString());
+				}
 			}
 		}
 		
@@ -100,6 +115,7 @@ public class TcpClient {
 	public TcpClient(ExecutorService executor, Socket socket) {
 		mClientSocket = socket;
 		mExecutorService = executor;
+		printAddress();
 	}
 
 	public void setClientCallback(ClientCallback callback) {
@@ -110,9 +126,6 @@ public class TcpClient {
 		Log.PrintLog(TAG, "startListen");
 		isRunning = true;
 		mExecutorService.submit(mStartListener);
-		if (mClientCallback != null) {
-			mClientCallback.onClientConnect(this, null);
-		}
 	}
 	
 	public void stopListen() {
@@ -122,6 +135,17 @@ public class TcpClient {
 		if (mClientCallback != null) {
 			mClientCallback.onClientDisconnect(this, null);
 		}
+	}
+	
+	private void stopStartedTransferServer() {
+		Log.PrintLog(TAG, "closeAllClient");
+		Iterator<TransferServer> iterator = mTransferServers.iterator();
+		while (iterator.hasNext()) {
+			TransferServer server = (TransferServer)iterator.next();
+			server.stopServer();
+			server = null;
+		}
+		mTransferServers.clear();
 	}
 	
 	public InputStream getClientInputStream() {
@@ -136,6 +160,22 @@ public class TcpClient {
 		return mClientInfomation;
 	}
 	
+	public String getRemoteInetAddress() {
+		return mClientSocket.getInetAddress().getHostAddress();
+	}
+	
+	public int getRemotePort() {
+		return mClientSocket.getPort();
+	}
+	
+	public String getLocalInetAddress() {
+		return mClientSocket.getLocalAddress().getHostAddress();
+	}
+	
+	public int getLocalPort() {
+		return mClientSocket.getLocalPort();
+	}
+	
 	private void sendMessage(String outMsg) {
 		try {
 			if (mSocketWriter != null) {
@@ -148,6 +188,13 @@ public class TcpClient {
 		}
 	}
 	
+	private void printAddress() {
+		if (mClientSocket != null) {
+			Log.PrintLog(TAG, "server:" + getLocalInetAddress() + ":" + getLocalPort() +
+					", client:" + getRemoteInetAddress() + ":" + getRemotePort());
+		}
+	}
+	
 	private void dealClearWork() {
 		Log.PrintLog(TAG, "closeStream isRunning = " + isRunning);
 		if (isRunning) {
@@ -157,6 +204,7 @@ public class TcpClient {
 		} else {
 			closeStream();
 		}
+		stopStartedTransferServer();
 	}
 	
 	private void closeStream() {
@@ -278,6 +326,9 @@ public class TcpClient {
 			mClientInfomation = data.getJSONObject("information");
 			try {
 				result = "parseInformation_" + mClientInfomation.getString("name") + "_ok";
+				if (mClientCallback != null) {
+					mClientCallback.onClientConnect(this, data);
+				}
 			} catch (Exception e) {
 				Log.PrintError(TAG, "parseInformation getString name Exception = " + e.getMessage());
 			}
@@ -287,28 +338,37 @@ public class TcpClient {
 	
 	private String parseStartNewServer(JSONObject data) {
 		String result = "unknown";
+		JSONObject serverObj = null;
 		String address = null;
 		int port = -1;
 		if (data != null && data.length() > 0) {
 			try {
-				address = mClientInfomation.getString("address");
+				serverObj = data.getJSONObject("server_info");
 			} catch (Exception e) {
-				Log.PrintError(TAG, "parseStartNewServer getString address Exception = " + e.getMessage());
+				Log.PrintError(TAG, "parseStartNewServer getString server_info Exception = " + e.getMessage());
 			}
-			try {
-				port = mClientInfomation.getInt("port");
-			} catch (Exception e) {
-				Log.PrintError(TAG, "parseStartNewServer getString port Exception = " + e.getMessage());
-			}
-			if (address != null && address.length() > 0 && port != -1) {
-				if (!isTransferServerExist(address, port)) {
-					result = "parseStartNewServer_" + address + ":" + port + "_ok";
-					TransferServer transferServer = new TransferServer(address, port);
-					transferServer.setClientCallback(mTransferServerCallback);
-					transferServer.startServer();
-				} else {
-					result = "parseStartNewServer_" + address + ":" + port + "_exist_ok";
-					Log.PrintLog(TAG, "parseStartNewServer exist server = " + address + ":" + port);
+			if (serverObj != null && serverObj.length() > 0) {
+				try {
+					address = serverObj.getString("address");
+				} catch (Exception e) {
+					Log.PrintError(TAG, "parseStartNewServer getString address Exception = " + e.getMessage());
+				}
+				try {
+					port = serverObj.getInt("port");
+				} catch (Exception e) {
+					Log.PrintError(TAG, "parseStartNewServer getString port Exception = " + e.getMessage());
+				}
+				if (address != null && address.length() > 0 && port != -1) {
+					if (!isTransferServerExist(address, port)) {
+						result = "parseStartNewServer_" + address + ":" + port + "_ok";
+						TransferServer transferServer = new TransferServer(address, port);
+						transferServer.setClientCallback(mTransferServerCallback);
+						transferServer.setTransferClientCallback(mTransferClientCallback);
+						transferServer.startServer();
+					} else {
+						result = "parseStartNewServer_" + address + ":" + port + "_exist_ok";
+						Log.PrintLog(TAG, "parseStartNewServer exist server = " + address + ":" + port);
+					}
 				}
 			}
 		}
@@ -344,5 +404,9 @@ public class TcpClient {
 	public interface TransferServerCallback {
 		void onTransferServerConnect(TransferServer server, JSONObject data);
 		void onTransferServerDisconnect(TransferServer server, JSONObject data);
+	}
+	
+	public interface TransferClientCallback {
+		void onTransferClientCommand(TransferClient client, JSONObject data);
 	}
 }

@@ -9,6 +9,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -26,17 +27,17 @@ public class TcpServer {
 	private int mTcpPort = -1;
 	private ExecutorService mExecutorService = null;
 	private boolean isServerRuning = false;
-	private List<TcpClient> mTcpClients = new ArrayList<TcpClient>();
+	private List<TcpClient> mTcpClients = Collections.synchronizedList(new ArrayList<TcpClient>());
 	private ClientCallback mClientCallback = new ClientCallback() {
 		
 		public void onClientDisconnect(TcpClient client, JSONObject data) {
 			// TODO Auto-generated method stub
-			addTcpClient(client);
+			removeTcpClient(client);
 		}
 		
 		public void onClientConnect(TcpClient client, JSONObject data) {
 			// TODO Auto-generated method stub
-			removeTcpClient(client);
+			addTcpClient(client);
 		}
 	};
 	

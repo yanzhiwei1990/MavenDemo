@@ -18,6 +18,7 @@ import java.util.concurrent.Executors;
 
 import org.json.JSONObject;
 
+import MavenDemo.TcpClient.TransferClientCallback;
 import MavenDemo.TcpClient.TransferServerCallback;
 import io.netty.channel.unix.Buffer;
 
@@ -33,16 +34,17 @@ public class TransferServer {
 	private boolean isServerRuning = false;
 	private List<TransferClient> mTransferClients = /*new ArrayList<TransferClient>();*/Collections.synchronizedList(new ArrayList<TransferClient>());
 	private TransferServerCallback mTransferServerCallback = null;
+	private TransferClientCallback mTransferClientCallback = null;
 	private ClientCallback mClientCallback = new ClientCallback() {
 		
 		public void onClientDisconnect(TransferClient client, JSONObject data) {
 			// TODO Auto-generated method stub
-			addTransferClient(client);
+			removeTransferClient(client);
 		}
 		
 		public void onClientConnect(TransferClient client, JSONObject data) {
 			// TODO Auto-generated method stub
-			removeTransferClient(client);
+			addTransferClient(client);
 		}
 	};
 	
@@ -58,6 +60,7 @@ public class TransferServer {
 					}
 					transferClient = new TransferClient(mExecutorService, TransferServer.this, mServerSocket.accept());
 					transferClient.setClientCallback(mClientCallback);
+					transferClient.setTransferClientCallback(mTransferClientCallback);
 					transferClient.startListen();
 				} catch (IOException e) {
 					Log.PrintError(TAG, "startServer accept Exception = " + e.getMessage());
@@ -81,6 +84,10 @@ public class TransferServer {
 		mTransferServerCallback = callback;
 	}
 	
+	public void setTransferClientCallback(TransferClientCallback callback) {
+		mTransferClientCallback = callback;
+	}
+
 	public  void startServer() {
 		if (mTcpAddress != null && mTcpAddress.length() > 0 && mTcpPort > 0) {
 			if (mServerSocket != null) {
@@ -123,7 +130,7 @@ public class TransferServer {
 	}
 	
 	private void addTransferClient(TransferClient client) {
-		Log.PrintLog(TAG, "addTransferClient = " + client.getClientInformation());
+		Log.PrintLog(TAG, "addTransferClient info = " + client.getClientInformation());
 		mTransferClients.add(client);
 	}
 	
@@ -140,16 +147,30 @@ public class TransferServer {
 			String singlerole = null;
 			String singleaddress = null;
 			int singleport = -1;
+			String singlerequestdddress = null;
+			int singlerequestport = -1;
 			while (iterator.hasNext()) {
 				singleClient = (TransferClient)iterator.next();
 				singlerole = singleClient.getClientRole();
-				singleaddress = singleClient.getRemoteInetAddress();
-				singleport = singleClient.getRemotePort();
-				if (type != null && type.equals(singlerole) && 
-						singleaddress != null && singleaddress.equals(address) &&
-						singleport != -1 && singleport == port) {
-					result = singleClient;
-					break;
+				switch (type) {
+					case "request":
+						singleaddress = singleClient.getRemoteInetAddress();
+						singleport = singleClient.getRemotePort();
+						if ("request".equals(singlerole) && singleaddress != null && singleaddress.equals(address) &&
+								singleport != -1 && singleport == port) {
+							result = singleClient;
+							break;
+						}
+						break;
+					case "response":
+						singlerequestdddress = singleClient.getRequestClientInetAddress();
+						singlerequestport = singleClient.getRequestClientPort();
+						if ("response".equals(singlerole) && singlerequestdddress != null && singlerequestdddress.equals(address) &&
+										singlerequestport != -1 && singlerequestport == port) {
+							result = singleClient;
+							break;
+						}
+						break;
 				}
 			}
 		} else {

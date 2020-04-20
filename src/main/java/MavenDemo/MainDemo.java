@@ -3,6 +3,8 @@ package MavenDemo;
 public class MainDemo {
 
 	private TcpServer mTcpServer = null;
+	//public static final String FIXED_HOST = "opendiylib.com";
+	public static final String FIXED_HOST = "0.0.0.0";
 	
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
@@ -12,7 +14,7 @@ public class MainDemo {
 	
 	private void startRun() {
 		initShutDownWork();
-		mTcpServer = new TcpServer("127.0.0.1", 19900);
+		mTcpServer = new TcpServer("0.0.0.0", 19910);
 		mTcpServer.startServer();
 		//TcpClient.startConnect("127.0.0.1", 19901);
 	}

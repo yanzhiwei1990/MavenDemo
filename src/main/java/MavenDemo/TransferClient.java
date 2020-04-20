@@ -17,7 +17,9 @@ import java.rmi.dgc.Lease;
 import java.util.concurrent.ExecutorService;
 
 import org.json.JSONObject;
+import org.omg.CORBA.PUBLIC_MEMBER;
 
+import MavenDemo.TcpClient.TransferClientCallback;
 import MavenDemo.TransferServer.ClientCallback;
 
 public class TransferClient {
@@ -40,6 +42,10 @@ public class TransferClient {
 	private InetAddress mLocalAddress = null;
 	private boolean mRecognised = false;
 	private String mClientRole = null;
+	private TransferClientCallback mTransferClientCallback = null;
+	
+	public static final String ROLE_REQUEST = "request";
+	public static final String ROLE_REPONSE = "response";
 	
 	private Runnable mStartListener = new Runnable() {
 
@@ -66,16 +72,16 @@ public class TransferClient {
 				while (isRunning) {
 					try {
 					    while ((length = mSocketReader.read(buffer, 0, buffer.length)) != -1) {
-					    	if (length <= 100) {
+					    	if (length <= 256) {
 					    		try {
 					    			inMsg = new String(buffer, 0, length, Charset.forName("UTF-8")).trim();
 								} catch (Exception e) {
 									inMsg = null;
-									Log.PrintError(TAG, "parse first 100 bytes error");
+									Log.PrintError(TAG, "parse first 256 bytes error");
 								}
-					    		Log.PrintLog(TAG, "Received from  client: " + inMsg);
 					    		outMsg = dealCommand(inMsg);
 					    		if (!"unknown".equals(outMsg)) {
+					    			Log.PrintLog(TAG, "Received from inMsg = " + inMsg + ", outMsg = " + outMsg);
 					    			sendMessage(outMsg);
 					    		}
 					    	} else {
@@ -84,32 +90,69 @@ public class TransferClient {
 					    	if (!mRecognised) {
 					    		mRecognised = true;
 					    		parseClientRole(outMsg);
+					    		if (mTransferClientCallback != null) {
+					    			JSONObject objCommand = new JSONObject();
+					    			objCommand.put("command", "status");
+					    			objCommand.put("role", mClientRole);
+					    			objCommand.put("status", "online");
+					    			objCommand.put("address", getRemoteInetAddress());
+					    			objCommand.put("port", getRemotePort());
+					    			mTransferClientCallback.onTransferClientCommand(TransferClient.this, objCommand);
+					    		}
+					    		if (mClientCallback != null) {
+					    			mClientCallback.onClientConnect(TransferClient.this, null);
+					    		}
 					    	}
+					    	Log.PrintLog(TAG, "length = " + length + ", mClientInfomation = " + mClientInfomation + ",outMsg = " + outMsg);
 					    	if ("unknown".equals(outMsg)) {
 					    		//need to transfer
-					    		if ("response".equals(mClientRole)) {
+					    		if (ROLE_REPONSE.equals(mClientRole)) {
 					    			if (mDestinationClient == null) {
-					    				mDestinationClient = mTransferServer.getTransferClient("request", getRequestClientInetAddress(), getRequestClientPort());
+					    				mDestinationClient = mTransferServer.getTransferClient(ROLE_REQUEST, getRequestClientInetAddress(), getRequestClientPort());
 					    			}
 					    			if (mDestinationClient != null) {
 					    				mDestinationClient.transferBuffer(buffer, 0, length);
 					    			} else {
 					    				Log.PrintLog(TAG, "stop response client as no request client");
+					    				if (mTransferClientCallback != null) {
+							    			JSONObject objCommand = new JSONObject();
+							    			objCommand.put("command", "status");
+							    			objCommand.put("role", mClientRole);
+							    			objCommand.put("status", "request_missing");
+							    			objCommand.put("address", getRemoteInetAddress());
+							    			objCommand.put("port", getRemotePort());
+							    			mTransferClientCallback.onTransferClientCommand(TransferClient.this, objCommand);
+							    		}
 					    				break;
 					    			}
 					    		} else {
 					    			//request client need to wait for respponse client ready
-					    			int count = 0;
+					    			int count = 30;
+					    			if (mDestinationClient == null) {
+					    				if (mTransferClientCallback != null) {
+							    			JSONObject objCommand = new JSONObject();
+							    			objCommand.put("command", "command");
+							    			objCommand.put("role", mClientRole);
+							    			objCommand.put("action", "start_connect");
+							    			objCommand.put("address", getRemoteInetAddress());
+							    			objCommand.put("port", getRemotePort());
+							    			objCommand.put("server_address", MainDemo.FIXED_HOST);
+							    			objCommand.put("server_port", getLocalPort());
+							    			objCommand.put("request_client_address", getRemoteInetAddress());
+							    			objCommand.put("request_client_port", getRemotePort());
+							    			mTransferClientCallback.onTransferClientCommand(TransferClient.this, objCommand);
+							    		}
+					    			}
 					    			while (mDestinationClient == null) {
-					    				delayMs(20);
-					    				mDestinationClient = mTransferServer.getTransferClient("response", getRemoteInetAddress(), getRemotePort());
-					    				count++;
-					    				if (count > 100) {
-					    					Log.PrintLog(TAG, "wait response client 2s time out");
+					    				delayMs(1000);
+					    				mDestinationClient = mTransferServer.getTransferClient(ROLE_REPONSE, getRemoteInetAddress(), getRemotePort());
+					    				count--;
+					    				if (count < 0) {
+					    					Log.PrintLog(TAG, "wait response client 30s time out");
 					    					break;
 					    				}
 					    			}
-					    			if (count > 100) {
+					    			if (count < 0) {
 					    				Log.PrintLog(TAG, "stop request client as time out");
 					    				break;
 					    			}
@@ -117,6 +160,15 @@ public class TransferClient {
 					    				mDestinationClient.transferBuffer(buffer, 0, length);
 					    			} else {
 					    				Log.PrintLog(TAG, "stop request client as no response client to transfer buffer");
+					    				if (mTransferClientCallback != null) {
+							    			JSONObject objCommand = new JSONObject();
+							    			objCommand.put("command", "status");
+							    			objCommand.put("role", mClientRole);
+							    			objCommand.put("status", "request_response_timeout");
+							    			objCommand.put("address", getRemoteInetAddress());
+							    			objCommand.put("port", getRemotePort());
+							    			mTransferClientCallback.onTransferClientCommand(TransferClient.this, objCommand);
+							    		}
 					    				break;
 					    			}
 					    		}
@@ -126,6 +178,7 @@ public class TransferClient {
 					   
 					} catch(Exception e) {
 						Log.PrintError(TAG, "accept Exception = " + e.getMessage());
+						e.printStackTrace();
 						break;
 					}
 					break;
@@ -144,19 +197,21 @@ public class TransferClient {
 		mTransferServer = transferServer;
 		mRemoteAddress = socket.getInetAddress();
 		mLocalAddress = socket.getLocalAddress();
+		printAddress();
 	}
 
 	public void setClientCallback(ClientCallback callback) {
 		mClientCallback = callback;
 	}
 	
+	public void setTransferClientCallback(TransferClientCallback callback) {
+		mTransferClientCallback = callback;
+	}
+	
 	public void startListen() {
 		Log.PrintLog(TAG, "startListen");
 		isRunning = true;
 		mExecutorService.submit(mStartListener);
-		if (mClientCallback != null) {
-			mClientCallback.onClientConnect(this, null);
-		}
 	}
 	
 	public void stopListen() {
@@ -200,12 +255,19 @@ public class TransferClient {
 		return mClientRole;
 	}
 	
+	private void printAddress() {
+		if (mClientSocket != null) {
+			Log.PrintLog(TAG, "server:" + getLocalInetAddress() + ":" + getLocalPort() +
+					", client:" + getRemoteInetAddress() + ":" + getRemotePort());
+		}
+	}
+	
 	public String getRequestClientInetAddress() {
 		String result = null;
 		try {
 			result = mClientInfomation.getString("request_client_address");
 		} catch (Exception e) {
-			Log.PrintError(TAG, "getRequestClientInetAddress Exception = " + e.getMessage());
+			//Log.PrintError(TAG, "getRequestClientInetAddress Exception = " + e.getMessage());
 		}
 		return result;
 	}
@@ -215,7 +277,7 @@ public class TransferClient {
 		try {
 			result = mClientInfomation.getInt("request_client_port");
 		} catch (Exception e) {
-			Log.PrintError(TAG, "getRequestClientPort Exception = " + e.getMessage());
+			//Log.PrintError(TAG, "getRequestClientPort Exception = " + e.getMessage());
 		}
 		return result;
 	}
@@ -243,13 +305,13 @@ public class TransferClient {
 			try {
 				obj = new JSONObject(data);
 			} catch (Exception e) {
-				Log.PrintError(TAG, "dealCommand new JSONObject Exception = " + e.getMessage());
+				//Log.PrintError(TAG, "dealCommand new JSONObject Exception = " + e.getMessage());
 			}
 			if (obj != null && obj.length() > 0) {
 				try {
 					command = obj.getString("command");
 				} catch (Exception e) {
-					Log.PrintError(TAG, "dealCommand getString command Exception = " + e.getMessage());
+					//Log.PrintError(TAG, "dealCommand getString command Exception = " + e.getMessage());
 				}
 				switch (command) {
 					case "information":
@@ -272,11 +334,14 @@ public class TransferClient {
 			mClientInfomation = data.getJSONObject("information");
 			try {
 				result = "parseInformation_" + mClientInfomation.getString("name") + "_ok";
-				if (mClientCallback != null) {
+				mClientInfomation.put("role", "response");
+				mClientInfomation.put("address", getRemoteInetAddress());
+				mClientInfomation.put("port", getRemotePort());
+				/*if (mClientCallback != null) {
 					mClientCallback.onClientConnect(TransferClient.this, mClientInfomation);
-				}
+				}*/
 			} catch (Exception e) {
-				Log.PrintError(TAG, "parseInformation getString name Exception = " + e.getMessage());
+				//Log.PrintError(TAG, "parseInformation getString name Exception = " + e.getMessage());
 			}
 		}
 		return result;
@@ -289,7 +354,7 @@ public class TransferClient {
 			try {
 				result = "parseStatus_" + mClientStatus.getString("status") + "_ok";
 			} catch (Exception e) {
-				Log.PrintError(TAG, "parseStatus getString status Exception = " + e.getMessage());
+				//Log.PrintError(TAG, "parseStatus getString status Exception = " + e.getMessage());
 			}
 		}
 		return result;
@@ -307,31 +372,35 @@ public class TransferClient {
 	private void parseClientRole(String mess) {
 		if ("unknown".equals(mess)) {
 			if (mClientRole == null) {
-				mClientRole = "request";
+				mClientRole = ROLE_REQUEST;
+			}
+			if (mClientInfomation == null) {
+				mClientInfomation = new JSONObject();
+				mClientInfomation.put("role", ROLE_REQUEST);
+				mClientInfomation.put("name", ROLE_REQUEST);
+				mClientInfomation.put("address", getRemoteInetAddress());
+				mClientInfomation.put("port", getRemotePort());
 			}
 		} else if (mess != null && mess.startsWith("parseInformation")) {
 			if (mClientRole == null) {
-				mClientRole = "response";
+				mClientRole = ROLE_REPONSE;
 			}
 		}
-		switch (mClientRole) {
-    		case "request":
-    			break;
-    		case "response":
-    			break;
-    		default:
-    			break;
-    	}
 	}
 	
-	private void transferBuffer(byte[] buffer, int start, int end) {
+	private boolean transferBuffer(byte[] buffer, int start, int end) {
+		//Log.PrintLog(TAG, "transferBuffer " + mClientInfomation + ", end = " + end);
+		boolean result = false;
 		try {
 			if (mSocketWriter != null) {
 				mSocketWriter.write(buffer, start, end);
+				mSocketWriter.flush();
+				result = true;
 			}
 		} catch (Exception e) {
 			Log.PrintError(TAG, "transferBuffer Exception = " + e.getMessage());
 		}
+		return result;
 	}
 	
 	private void dealClearWork() {
