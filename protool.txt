@@ -7,3 +7,20 @@
 {"command":"information","information":{"name":"testresponse","request_client_address":"127.0.0.1","request_client_port":}}
 
 {"command":"information","information":{"name":"testresponse","request_client_address":"58.246.136.202","request_client_port":62944}}
+
+
+//connect to fixed server
+//{"command":"information","information":{"name":"request_tranfer_client","mac_address":"10-7B-44-15-2D-B6","dhcp_address":"192.168.188.150","dhcp_port":19909,"fixed_server_address":"opendiylib.com","fixed_server_port":19910}}
+
+//request a new transfer server
+//{"command":"start_new_transfer_server","server_info":{"new_transfer_server_address":"opendiylib.com","new_transfer_server_port":19909,"bonded_response_server_address":"192.168.188.150","bonded_response_server_port":19911}}
+
+//request to stop transfer server
+//{"command":"stop_transfer_server","server_info":{"new_transfer_server_address":"opendiylib.com","new_transfer_server_port":19909,"bonded_response_server_address":"192.168.188.150","bonded_response_server_port":19911}}
+
+
+//request client in and tell response client to start connect to transfer server to transfer request
+//{"command":"start_connect","request_client_info":{"request_client_nat_address":"114.82.25.165","request_client_nat_port":50000,"connected_transfer_server_address":"opendiylib.com","connected_transfer_server_port":19911,"bonded_response_server_address":"192.168.188.150","bonded_response_server_port":3389}
+
+//connect to transfer server and report related infomation
+//{"command":"information","information":{"name":"response_tranfer_client","mac_address":"10-7B-44-15-2D-B6","dhcp_address":"192.168.188.150","dhcp_port":50001,"request_client_nat_address":"114.82.25.165","request_client_nat_port":50000,"connected_transfer_server_address":"opendiylib.com","connected_transfer_server_port":19911}}

@@ -180,7 +180,7 @@ public class TcpClient {
 		try {
 			if (mSocketWriter != null) {
 				mSocketWriter.write(outMsg);
-		    	mSocketWriter.write("\n");
+		    	//mSocketWriter.write("\n");
 		    	mSocketWriter.flush();
 			}
 		} catch (Exception e) {
@@ -306,7 +306,10 @@ public class TcpClient {
 					case "information":
 						result = parseInformation(obj);
 						break;
-					case "startnewserver":
+					case "start_new_transfer_server":
+						result = parseStartNewServer(obj);
+						break;
+					case "stop_transfer_server":
 						result = parseStartNewServer(obj);
 						break;
 					case "status":
@@ -325,9 +328,15 @@ public class TcpClient {
 		if (data != null && data.length() > 0) {
 			mClientInfomation = data.getJSONObject("information");
 			try {
-				result = "parseInformation_" + mClientInfomation.getString("name") + "_ok";
+				if (mClientInfomation != null && mClientInfomation.length() > 0) {
+					
+				}
+				result = "parseInformation_" + mClientInfomation.getString("name") + "_" + mClientInfomation.getString("mac_address") + "_ok";
+				//add nat address
+				mClientInfomation.put("response_client_nat_address", getRemoteInetAddress());
+				mClientInfomation.put("response_client_nat_port", getRemotePort());
 				if (mClientCallback != null) {
-					mClientCallback.onClientConnect(this, data);
+					mClientCallback.onClientConnect(this, mClientInfomation);
 				}
 			} catch (Exception e) {
 				Log.PrintError(TAG, "parseInformation getString name Exception = " + e.getMessage());
@@ -341,7 +350,11 @@ public class TcpClient {
 		JSONObject serverObj = null;
 		String address = null;
 		int port = -1;
+		String bondedReponseAddress = null;
+		int bondedReponsePort = -1;
 		if (data != null && data.length() > 0) {
+			////request a new transfer server
+			//{"command":"start_new_transfer_server","server_info":{"new_transfer_server_address":"opendiylib.com","new_transfer_server_port":19909,"bonded_response_server_address":"192.168.188.150","bonded_response_server_port":19911}}
 			try {
 				serverObj = data.getJSONObject("server_info");
 			} catch (Exception e) {
@@ -349,25 +362,85 @@ public class TcpClient {
 			}
 			if (serverObj != null && serverObj.length() > 0) {
 				try {
-					address = serverObj.getString("address");
+					address = serverObj.getString("new_transfer_server_address");
 				} catch (Exception e) {
-					Log.PrintError(TAG, "parseStartNewServer getString address Exception = " + e.getMessage());
+					Log.PrintError(TAG, "parseStartNewServer getString new_transfer_server_address Exception = " + e.getMessage());
 				}
 				try {
-					port = serverObj.getInt("port");
+					port = serverObj.getInt("new_transfer_server_port");
 				} catch (Exception e) {
-					Log.PrintError(TAG, "parseStartNewServer getString port Exception = " + e.getMessage());
+					Log.PrintError(TAG, "parseStartNewServer getString new_transfer_server_port Exception = " + e.getMessage());
 				}
-				if (address != null && address.length() > 0 && port != -1) {
+				try {
+					bondedReponseAddress = serverObj.getString("bonded_response_server_address");
+				} catch (Exception e) {
+					Log.PrintError(TAG, "parseStartNewServer getString bonded_response_server_address Exception = " + e.getMessage());
+				}
+				try {
+					bondedReponsePort = serverObj.getInt("bonded_response_server_port");
+				} catch (Exception e) {
+					Log.PrintError(TAG, "parseStartNewServer getInt bonded_response_server_port Exception = " + e.getMessage());
+				}
+				if (address != null && address.length() > 0 && port != -1 && bondedReponseAddress != null && bondedReponseAddress.length() > 0 && bondedReponsePort != -1) {
 					if (!isTransferServerExist(address, port)) {
 						result = "parseStartNewServer_" + address + ":" + port + "_ok";
-						TransferServer transferServer = new TransferServer(address, port);
+						TransferServer transferServer = new TransferServer(address, port, bondedReponseAddress, bondedReponsePort);
 						transferServer.setClientCallback(mTransferServerCallback);
 						transferServer.setTransferClientCallback(mTransferClientCallback);
 						transferServer.startServer();
 					} else {
 						result = "parseStartNewServer_" + address + ":" + port + "_exist_ok";
 						Log.PrintLog(TAG, "parseStartNewServer exist server = " + address + ":" + port);
+					}
+				}
+			}
+		}
+		return result;
+	}
+	
+	private String parseStopTransferServer(JSONObject data) {
+		String result = "unknown";
+		JSONObject serverObj = null;
+		String address = null;
+		int port = -1;
+		String bondedReponseAddress = null;
+		int bondedReponsePort = -1;
+		if (data != null && data.length() > 0) {
+			////request a new transfer server
+			//{"command":"stop_transfer_server","server_info":{"new_transfer_server_address":"opendiylib.com","new_transfer_server_port":19909,"bonded_response_server_address":"192.168.188.150","bonded_response_server_port":19911}}
+			try {
+				serverObj = data.getJSONObject("server_info");
+			} catch (Exception e) {
+				Log.PrintError(TAG, "parseStopTransferServer getString server_info Exception = " + e.getMessage());
+			}
+			if (serverObj != null && serverObj.length() > 0) {
+				try {
+					address = serverObj.getString("new_transfer_server_address");
+				} catch (Exception e) {
+					Log.PrintError(TAG, "parseStopTransferServer getString new_transfer_server_address Exception = " + e.getMessage());
+				}
+				try {
+					port = serverObj.getInt("new_transfer_server_port");
+				} catch (Exception e) {
+					Log.PrintError(TAG, "parseStopTransferServer getString new_transfer_server_port Exception = " + e.getMessage());
+				}
+				try {
+					bondedReponseAddress = serverObj.getString("bonded_response_server_address");
+				} catch (Exception e) {
+					Log.PrintError(TAG, "parseStopTransferServer getString bonded_response_server_address Exception = " + e.getMessage());
+				}
+				try {
+					bondedReponsePort = serverObj.getInt("bonded_response_server_port");
+				} catch (Exception e) {
+					Log.PrintError(TAG, "parseStopTransferServer getInt bonded_response_server_port Exception = " + e.getMessage());
+				}
+				if (address != null && address.length() > 0 && port != -1 && bondedReponseAddress != null && bondedReponseAddress.length() > 0 && bondedReponsePort != -1) {
+					TransferServer transferServer = getTransferServerExist(address, port);
+					if (transferServer != null) {
+						transferServer.stopServer();
+						result = "parseStopTransferServer_" + address + ":" + port + "_ok";
+					} else {
+						result = "parseStopTransferServer_" + address + ":" + port + "_not_exist_ok";
 					}
 				}
 			}
@@ -383,6 +456,20 @@ public class TcpClient {
 			transferServer = (TransferServer)iterator.next();
 			if (transferServer.getAddress().equals(address) && transferServer.getPort() == port) {
 				result = true;
+				break;
+			}
+		}
+		return result;
+	}
+	
+	private TransferServer getTransferServerExist(String address, int port) {
+		TransferServer result = null;
+		Iterator<TransferServer> iterator = mTransferServers.iterator();
+		TransferServer transferServer = null;
+		while (iterator.hasNext()) {
+			transferServer = (TransferServer)iterator.next();
+			if (transferServer.getAddress().equals(address) && transferServer.getPort() == port) {
+				result = transferServer;
 				break;
 			}
 		}

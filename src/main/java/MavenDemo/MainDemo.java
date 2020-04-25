@@ -3,7 +3,7 @@ package MavenDemo;
 public class MainDemo {
 
 	private TcpServer mTcpServer = null;
-	//public static final String FIXED_HOST = "opendiylib.com";
+	public static final String FIXED_HOST_SITE = "opendiylib.com";
 	public static final String FIXED_HOST = "0.0.0.0";
 	
 	public static void main(String[] args) {

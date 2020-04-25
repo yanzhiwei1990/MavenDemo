@@ -30,6 +30,8 @@ public class TransferServer {
 	private ServerSocket mServerSocket = null;
 	private String mTcpAddress = null;
 	private int mTcpPort = -1;
+	private String mBondedResponseAddress = null;
+	private int mBondedResponsePort = -1;
 	private ExecutorService mExecutorService = null;
 	private boolean isServerRuning = false;
 	private List<TransferClient> mTransferClients = /*new ArrayList<TransferClient>();*/Collections.synchronizedList(new ArrayList<TransferClient>());
@@ -74,9 +76,11 @@ public class TransferServer {
 		}
 	};
 	
-	public TransferServer(String address, int port) {
+	public TransferServer(String address, int port, String bondedAddress, int bondedPort) {
 		mTcpAddress = address;
 		mTcpPort = port;
+		mBondedResponseAddress = bondedAddress;
+		mBondedResponsePort = bondedPort;
 		mExecutorService = Executors.newFixedThreadPool(MAX_THREAD);
 	}
 	
@@ -127,6 +131,14 @@ public class TransferServer {
 	
 	public int getPort() {
 		return mTcpPort;
+	}
+	
+	public String getBondedReponseAddress() {
+		return mBondedResponseAddress;
+	}
+	
+	public int getBondedReponsePort() {
+		return mBondedResponsePort;
 	}
 	
 	private void addTransferClient(TransferClient client) {
