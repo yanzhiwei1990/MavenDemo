@@ -72,7 +72,7 @@ public class TransferClient {
 				while (isRunning) {
 					try {
 					    while ((length = mSocketReader.read(buffer, 0, buffer.length)) != -1) {
-					    	if (length <= 512) {
+					    	if (length <= 1024) {
 					    		try {
 					    			inMsg = new String(buffer, 0, length, Charset.forName("UTF-8")).trim();
 								} catch (Exception e) {
@@ -81,12 +81,12 @@ public class TransferClient {
 								}
 					    		outMsg = dealCommand(inMsg);
 					    		if (!"unknown".equals(outMsg)) {
-					    			Log.PrintLog(TAG, "Received from inMsg = " + inMsg + ", outMsg = " + outMsg);
 					    			sendMessage(outMsg);
 					    		}
 					    	} else {
 					    		outMsg = "unknown";
 					    	}
+					    	Log.PrintLog(TAG, "Received from inMsg = " + inMsg + ", outMsg = " + outMsg);
 					    	if (!mRecognised) {
 					    		mRecognised = true;
 					    		parseClientRole(outMsg);
@@ -134,12 +134,14 @@ public class TransferClient {
 					    					//{"command":"start_connect","request_client_info":{"request_client_nat_address":"114.82.25.165","request_client_nat_port":50000,"connected_transfer_server_address":"opendiylib.com","connected_transfer_server_port":19911,"bonded_response_server_address":"192.168.188.150","bonded_response_server_port":3389}
 							    			JSONObject objCommand = new JSONObject();
 							    			objCommand.put("command", "start_connect");
-							    			objCommand.put("connected_transfer_server_address", MainDemo.FIXED_HOST_SITE);
-							    			objCommand.put("connected_transfer_server_port", getLocalPort());
-							    			objCommand.put("request_client_nat_address", getRemoteInetAddress());
-							    			objCommand.put("request_client_nat_port", getRemotePort());
-							    			objCommand.put("bonded_response_server_address", mTransferServer.getBondedReponseAddress());
-							    			objCommand.put("bonded_response_server_port", mTransferServer.getBondedReponsePort());
+							    			JSONObject request_client_info = new JSONObject();
+							    			request_client_info.put("connected_transfer_server_address", MainDemo.FIXED_HOST_SITE);
+							    			request_client_info.put("connected_transfer_server_port", getLocalPort());
+							    			request_client_info.put("request_client_nat_address", getRemoteInetAddress());
+							    			request_client_info.put("request_client_nat_port", getRemotePort());
+							    			request_client_info.put("bonded_response_server_address", mTransferServer.getBondedReponseAddress());
+							    			request_client_info.put("bonded_response_server_port", mTransferServer.getBondedReponsePort());
+							    			objCommand.put("request_client_info", request_client_info);
 							    			mTransferClientCallback.onTransferClientCommand(TransferClient.this, objCommand);
 							    		}
 					    			}

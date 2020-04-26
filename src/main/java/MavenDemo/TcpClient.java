@@ -1,5 +1,7 @@
 package MavenDemo;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -28,8 +30,10 @@ public class TcpClient {
 	private ExecutorService mExecutorService = null;
 	private InputStream mInputStream = null;
 	private OutputStream mOutputStream = null;
-	private BufferedReader mSocketReader = null;
-	private BufferedWriter mSocketWriter = null;
+	//private BufferedReader mSocketReader = null;
+	//private BufferedWriter mSocketWriter = null;
+	private BufferedInputStream mSocketReader = null;
+	private BufferedOutputStream mSocketWriter = null;
 	private JSONObject mClientInfomation = null;//add mac address as name
 	private boolean isRunning = false;
 	private List<TransferServer> mTransferServers = Collections.synchronizedList(new ArrayList<TransferServer>());
@@ -85,16 +89,26 @@ public class TcpClient {
 				Log.PrintError(TAG, "accept getOutputStream Exception = " + e.getMessage());
 			}
 			if (mInputStream != null && mOutputStream != null) {
-				mSocketReader = new BufferedReader(new InputStreamReader(mInputStream, Charset.forName("UTF-8")));
-				mSocketWriter = new BufferedWriter(new OutputStreamWriter(mOutputStream));
+				//mSocketReader = new BufferedReader(new InputStreamReader(mInputStream, Charset.forName("UTF-8")));
+				//mSocketWriter = new BufferedWriter(new OutputStreamWriter(mOutputStream));
+				byte[] buffer = new byte[1024 * 1024];
+				int length = -1;
+				mSocketReader = new BufferedInputStream(mInputStream, buffer.length);
+				mSocketWriter = new BufferedOutputStream(mOutputStream, buffer.length);
 				String inMsg = null;
 				String outMsg = null;
+				JSONObject result = null;
 				while (isRunning) {
 					try {
-					    while ((inMsg = mSocketReader.readLine()) != null) {
+					    //while ((inMsg = mSocketReader.readLine()) != null) {
+				    	while ((length = mSocketReader.read(buffer, 0, buffer.length)) != -1) {
+				    		inMsg = new String(buffer, 0, length, Charset.forName("UTF-8")).trim();
 					    	Log.PrintLog(TAG, "Received from  client: " + inMsg);
 					    	outMsg = dealCommand(inMsg);
-					    	sendMessage(outMsg);
+					    	result = new JSONObject();
+					    	result.put("command", "status");
+					    	result.put("status", outMsg);
+					    	sendMessage(result.toString());
 					    }
 					    Log.PrintLog(TAG, "startListener disconnect");
 					   
@@ -178,9 +192,9 @@ public class TcpClient {
 	
 	private void sendMessage(String outMsg) {
 		try {
-			if (mSocketWriter != null) {
-				mSocketWriter.write(outMsg);
-		    	//mSocketWriter.write("\n");
+			if (mSocketWriter != null && outMsg != null && outMsg.length() > 0) {
+				byte[] send = (outMsg/* + "\n"*/).getBytes(Charset.forName("UTF-8"));
+				mSocketWriter.write(send, 0, send.length);
 		    	mSocketWriter.flush();
 			}
 		} catch (Exception e) {
@@ -301,6 +315,7 @@ public class TcpClient {
 					command = obj.getString("command");
 				} catch (Exception e) {
 					Log.PrintError(TAG, "dealCommand getString command Exception = " + e.getMessage());
+					Log.PrintLog(TAG, "dealCommand not json:" + data);
 				}
 				switch (command) {
 					case "information":
@@ -480,7 +495,7 @@ public class TcpClient {
 		String result = "unknown";
 		if (data != null && data.length() > 0) {
 			try {
-				result = "parseStatus_" + mClientInfomation.getString("status") + "_ok";
+				result = "parseStatus_" + data.getString("status") + "_ok";
 			} catch (Exception e) {
 				Log.PrintError(TAG, "parseStatus getString status Exception = " + e.getMessage());
 			}
