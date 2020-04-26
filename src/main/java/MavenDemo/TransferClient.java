@@ -81,7 +81,11 @@ public class TransferClient {
 								}
 					    		outMsg = dealCommand(inMsg);
 					    		if (!"unknown".equals(outMsg)) {
-					    			sendMessage(outMsg);
+					    			Log.PrintLog(TAG, "Received from inMsg = " + inMsg + ", outMsg = " + outMsg);
+					    			JSONObject result = new JSONObject();
+							    	result.put("command", "status");
+							    	result.put("status", outMsg);
+							    	sendMessage(result.toString());
 					    		}
 					    	} else {
 					    		outMsg = "unknown";
@@ -348,9 +352,9 @@ public class TransferClient {
 				//add nat address
 				mClientInfomation.put("response_client_nat_address", getRemoteInetAddress());
 				mClientInfomation.put("response_client_nat_port", getRemotePort());
-				/*if (mClientCallback != null) {
+				if (mClientCallback != null) {
 					mClientCallback.onClientConnect(TransferClient.this, mClientInfomation);
-				}*/
+				}
 			} catch (Exception e) {
 				//Log.PrintError(TAG, "parseInformation getString name Exception = " + e.getMessage());
 			}

@@ -344,14 +344,13 @@ public class TcpClient {
 			mClientInfomation = data.getJSONObject("information");
 			try {
 				if (mClientInfomation != null && mClientInfomation.length() > 0) {
-					
-				}
-				result = "parseInformation_" + mClientInfomation.getString("name") + "_" + mClientInfomation.getString("mac_address") + "_ok";
-				//add nat address
-				mClientInfomation.put("response_client_nat_address", getRemoteInetAddress());
-				mClientInfomation.put("response_client_nat_port", getRemotePort());
-				if (mClientCallback != null) {
-					mClientCallback.onClientConnect(this, mClientInfomation);
+					result = "parseInformation_" + mClientInfomation.getString("name") + "_" + mClientInfomation.getString("mac_address") + "_ok";
+					//add nat address
+					mClientInfomation.put("response_client_nat_address", getRemoteInetAddress());
+					mClientInfomation.put("response_client_nat_port", getRemotePort());
+					if (mClientCallback != null) {
+						mClientCallback.onClientConnect(this, mClientInfomation);
+					}
 				}
 			} catch (Exception e) {
 				Log.PrintError(TAG, "parseInformation getString name Exception = " + e.getMessage());
