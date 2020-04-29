@@ -44,7 +44,6 @@ public class TcpClient {
 		public void onTransferServerConnect(TransferServer server, JSONObject data) {
 			addTransferServer(server);
 			if (data != null && data.length() > 0) {
-				data.put("action", "server_started");
 				sendMessage(data.toString());
 			}
 		}
@@ -53,7 +52,6 @@ public class TcpClient {
 		public void onTransferServerDisconnect(TransferServer server, JSONObject data) {
 			removeTransferServer(server);
 			if (data != null && data.length() > 0) {
-				data.put("action", "server_stopped");
 				sendMessage(data.toString());
 			}
 		}
@@ -67,6 +65,7 @@ public class TcpClient {
 			Log.PrintLog(TAG, "onTransferClientCommand data = " + data);
 			if (client != null) {
 				if (data != null && data.length() > 0) {
+					data.put("action", "transfer_client_command");
 					sendMessage(data.toString());
 				}
 			}
@@ -105,10 +104,10 @@ public class TcpClient {
 				    		inMsg = new String(buffer, 0, length, Charset.forName("UTF-8")).trim();
 					    	Log.PrintLog(TAG, "Received from  client: " + inMsg);
 					    	outMsg = dealCommand(inMsg);
-					    	result = new JSONObject();
-					    	result.put("command", "status");
-					    	result.put("status", outMsg);
-					    	sendMessage(result.toString());
+					    	if (!"no_need_feedback".equals(outMsg)) {
+						    	sendMessage(outMsg);
+					    	}
+					    	Log.PrintLog(TAG, "Received client out: " + outMsg);
 					    }
 					    Log.PrintLog(TAG, "startListener disconnect");
 					   
@@ -322,13 +321,16 @@ public class TcpClient {
 						result = parseInformation(obj);
 						break;
 					case "start_new_transfer_server":
-						result = parseStartNewServer(obj);
+						result = parseStartNewTransferServer(obj);
 						break;
 					case "stop_transfer_server":
-						result = parseStartNewServer(obj);
+						result = parseStopTransferServer(obj);
 						break;
 					case "status":
 						result = parseStatus(obj);
+						break;
+					case "result":
+						result = parseResult(obj);
 						break;
 					default:
 						break;
@@ -343,11 +345,38 @@ public class TcpClient {
 		if (data != null && data.length() > 0) {
 			mClientInfomation = data.getJSONObject("information");
 			try {
+				/*
+				{
+					"command":"result",
+					"result":
+						{
+							"status":"connected_to_fixed_server",
+							"information":
+								{
+									"name":"response_fixed_request_tranfer_client",
+									"mac_address","10-7B-44-15-2D-B6",
+									"dhcp_address","192.168.188.150",
+									"dhcp_port":5555,
+									"fixed_server_address":"opendiylib.com",
+									"fixed_server_port":19910,
+									"response_fixed_client_nat_address":"58.246.136.202",
+									"response_fixed_client_nat_port":50000
+								}
+						}
+					}
+						
+				}
+				*/
 				if (mClientInfomation != null && mClientInfomation.length() > 0) {
-					result = "parseInformation_" + mClientInfomation.getString("name") + "_" + mClientInfomation.getString("mac_address") + "_ok";
 					//add nat address
-					mClientInfomation.put("response_client_nat_address", getRemoteInetAddress());
-					mClientInfomation.put("response_client_nat_port", getRemotePort());
+					mClientInfomation.put("response_fixed_client_nat_address", getRemoteInetAddress());
+					mClientInfomation.put("response_fixed_client_nat_port", getRemotePort());
+					JSONObject command = new JSONObject();
+					command.put("command", "result");
+					JSONObject resultJson = new JSONObject();
+					resultJson.put("status", "connected_to_fixed_server");
+					resultJson.put("information", mClientInfomation);
+					command.put("result", resultJson);
 					if (mClientCallback != null) {
 						mClientCallback.onClientConnect(this, mClientInfomation);
 					}
@@ -359,7 +388,7 @@ public class TcpClient {
 		return result;
 	}
 	
-	private String parseStartNewServer(JSONObject data) {
+	private String parseStartNewTransferServer(JSONObject data) {
 		String result = "unknown";
 		JSONObject serverObj = null;
 		String address = null;
@@ -402,9 +431,58 @@ public class TcpClient {
 						transferServer.setClientCallback(mTransferServerCallback);
 						transferServer.setTransferClientCallback(mTransferClientCallback);
 						transferServer.startServer();
+						/*
+						{
+							"command":"result",
+							"result":
+								{
+									"status":"new_transfer_server_started",
+									"server_info":
+										{
+											"new_transfer_server_address":"0.0.0.0",
+											"new_transfer_server_port":19920,
+											"bonded_response_server_address","192.168.188.150"
+											"bonded_response_server_port":19920
+										}
+								}
+							}
+								
+						}
+						*/
+						JSONObject command = new JSONObject();
+						command.put("command", "result");
+						JSONObject resultJson = new JSONObject();
+						resultJson.put("status", "new_transfer_server_started");
+						resultJson.put("server_info", serverObj);
+						command.put("result", resultJson);
+						result = command.toString();
 					} else {
-						result = "parseStartNewServer_" + address + ":" + port + "_exist_ok";
-						Log.PrintLog(TAG, "parseStartNewServer exist server = " + address + ":" + port);
+						/*
+						{
+							"command":"result",
+							"result":
+								{
+									"status":"transfer_server_existed",
+									"server_info":
+										{
+											"new_transfer_server_address":"0.0.0.0",
+											"new_transfer_server_port":19920,
+											"bonded_response_server_address","192.168.188.150"
+											"bonded_response_server_port":19920
+										}
+								}
+							}
+								
+						}
+						*/
+						JSONObject command = new JSONObject();
+						command.put("command", "result");
+						JSONObject resultJson = new JSONObject();
+						resultJson.put("status", "transfer_server_existed");
+						resultJson.put("server_info", serverObj);
+						command.put("result", resultJson);
+						result = command.toString();
+						Log.PrintLog(TAG, "parseStartNewServer exist server = " + serverObj);
 					}
 				}
 			}
@@ -452,9 +530,22 @@ public class TcpClient {
 					TransferServer transferServer = getTransferServerExist(address, port);
 					if (transferServer != null) {
 						transferServer.stopServer();
-						result = "parseStopTransferServer_" + address + ":" + port + "_ok";
+						JSONObject command = new JSONObject();
+						command.put("command", "result");
+						JSONObject resultJson = new JSONObject();
+						resultJson.put("status", "transfer_server_stopped");
+						resultJson.put("server_info", serverObj);
+						command.put("result", resultJson);
+						result = command.toString();
 					} else {
-						result = "parseStopTransferServer_" + address + ":" + port + "_not_exist_ok";
+						JSONObject command = new JSONObject();
+						command.put("command", "result");
+						JSONObject resultJson = new JSONObject();
+						resultJson.put("status", "transfer_server_not_found");
+						resultJson.put("server_info", serverObj);
+						command.put("result", resultJson);
+						result = command.toString();
+						Log.PrintLog(TAG, "parseStopTransferServer not found server = " + serverObj);
 					}
 				}
 			}
@@ -492,11 +583,39 @@ public class TcpClient {
 	
 	private String parseStatus(JSONObject data) {
 		String result = "unknown";
+		JSONObject status = null;
 		if (data != null && data.length() > 0) {
 			try {
-				result = "parseStatus_" + data.getString("status") + "_ok";
+				status = data.getJSONObject("status");
 			} catch (Exception e) {
 				Log.PrintError(TAG, "parseStatus getString status Exception = " + e.getMessage());
+				return result;
+			}
+			try {
+				result = "no_need_feedback";
+				Log.PrintLog(TAG, "parseStatus " + status);
+			} catch (Exception e) {
+				Log.PrintError(TAG, "parseStatus deal status Exception = " + e.getMessage());
+			}
+		}
+		return result;
+	}
+	
+	private String parseResult(JSONObject data) {
+		String result = "unknown";
+		JSONObject resultJson = null;
+		if (data != null && data.length() > 0) {
+			try {
+				resultJson = data.getJSONObject("result");
+			} catch (Exception e) {
+				Log.PrintError(TAG, "parseResult getString result Exception = " + e.getMessage());
+				return result;
+			}
+			try {
+				result = "no_need_feedback";
+				Log.PrintLog(TAG, "parseResult " + resultJson);
+			} catch (Exception e) {
+				Log.PrintError(TAG, "parseResult deal result Exception = " + e.getMessage());
 			}
 		}
 		return result;

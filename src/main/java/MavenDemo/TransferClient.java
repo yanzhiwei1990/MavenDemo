@@ -80,34 +80,27 @@ public class TransferClient {
 									Log.PrintError(TAG, "parse first 256 bytes error");
 								}
 					    		outMsg = dealCommand(inMsg);
-					    		if (!"unknown".equals(outMsg)) {
+					    		if (!"no_need_feedback".equals(outMsg)) {
 					    			Log.PrintLog(TAG, "Received from inMsg = " + inMsg + ", outMsg = " + outMsg);
 					    			JSONObject result = new JSONObject();
 							    	result.put("command", "status");
 							    	result.put("status", outMsg);
 							    	sendMessage(result.toString());
+					    		} else {
+					    			outMsg = "unknown";
 					    		}
 					    	} else {
 					    		outMsg = "unknown";
 					    	}
-					    	Log.PrintLog(TAG, "Received from inMsg = " + inMsg + ", outMsg = " + outMsg);
+					    	Log.PrintLog(TAG, "length = " + length + ", inMsg = " + inMsg + ",outMsg = " + outMsg);
 					    	if (!mRecognised) {
 					    		mRecognised = true;
 					    		parseClientRole(outMsg);
-					    		if (mTransferClientCallback != null) {
-					    			JSONObject objCommand = new JSONObject();
-					    			objCommand.put("command", "status");
-					    			objCommand.put("role", mClientRole);
-					    			objCommand.put("status", "online");
-					    			objCommand.put("address", getRemoteInetAddress());
-					    			objCommand.put("port", getRemotePort());
-					    			mTransferClientCallback.onTransferClientCommand(TransferClient.this, objCommand);
-					    		}
 					    		if (mClientCallback != null) {
 					    			mClientCallback.onClientConnect(TransferClient.this, null);
 					    		}
+					    		Log.PrintLog(TAG, "Received Recognised mClientInfomation = " + mClientInfomation);
 					    	}
-					    	Log.PrintLog(TAG, "length = " + length + ", mClientInfomation = " + mClientInfomation + ",outMsg = " + outMsg);
 					    	if ("unknown".equals(outMsg)) {
 					    		//need to transfer
 					    		if (ROLE_REPONSE.equals(mClientRole)) {
@@ -116,9 +109,9 @@ public class TransferClient {
 					    			}
 					    			if (mDestinationClient != null) {
 					    				mDestinationClient.transferBuffer(buffer, 0, length);
-					    			} else {
-					    				Log.PrintLog(TAG, "stop response client as no request client");
-					    				if (mTransferClientCallback != null) {
+					    			}  else {
+					    				Log.PrintLog(TAG, "Received no Recognised ROLE_REQUEST client");
+					    				/*if (mTransferClientCallback != null) {
 							    			JSONObject objCommand = new JSONObject();
 							    			objCommand.put("command", "status");
 							    			objCommand.put("role", mClientRole);
@@ -127,7 +120,7 @@ public class TransferClient {
 							    			objCommand.put("port", getRemotePort());
 							    			mTransferClientCallback.onTransferClientCommand(TransferClient.this, objCommand);
 							    		}
-					    				break;
+					    				break;*/
 					    			}
 					    		} else {
 					    			//request client need to wait for respponse client ready
@@ -135,17 +128,30 @@ public class TransferClient {
 					    			if (mDestinationClient == null) {
 					    				if (mTransferClientCallback != null) {
 					    					//request client in and tell response client to start connect to transfer server to transfer request
-					    					//{"command":"start_connect","request_client_info":{"request_client_nat_address":"114.82.25.165","request_client_nat_port":50000,"connected_transfer_server_address":"opendiylib.com","connected_transfer_server_port":19911,"bonded_response_server_address":"192.168.188.150","bonded_response_server_port":3389}
+					    					/*
+					    					{
+					    						"command":"start_connect_transfer",
+					    						"server_info":
+					    							{
+					    								"connected_transfer_server_address":"www.opendiylib.com",
+					    								"connected_transfer_server_port":19920,
+					    								"request_client_nat_address":"58.246.136.202",
+					    								"request_client_nat_port":50000,
+					    								"bonded_response_server_address","192.168.188.150"
+					    								"bonded_response_server_port":19920
+					    							}
+					    					}
+					    					*/
 							    			JSONObject objCommand = new JSONObject();
-							    			objCommand.put("command", "start_connect");
-							    			JSONObject request_client_info = new JSONObject();
-							    			request_client_info.put("connected_transfer_server_address", MainDemo.FIXED_HOST_SITE);
-							    			request_client_info.put("connected_transfer_server_port", getLocalPort());
-							    			request_client_info.put("request_client_nat_address", getRemoteInetAddress());
-							    			request_client_info.put("request_client_nat_port", getRemotePort());
-							    			request_client_info.put("bonded_response_server_address", mTransferServer.getBondedReponseAddress());
-							    			request_client_info.put("bonded_response_server_port", mTransferServer.getBondedReponsePort());
-							    			objCommand.put("request_client_info", request_client_info);
+							    			objCommand.put("command", "start_connect_transfer");
+							    			JSONObject server_info = new JSONObject();
+							    			server_info.put("connected_transfer_server_address", MainDemo.FIXED_HOST_SITE);
+							    			server_info.put("connected_transfer_server_port", mTransferServer.getPort());
+							    			server_info.put("request_client_nat_address", getRemoteInetAddress());
+							    			server_info.put("request_client_nat_port", getRemotePort());
+							    			server_info.put("bonded_response_server_address", mTransferServer.getBondedReponseAddress());
+							    			server_info.put("bonded_response_server_port", mTransferServer.getBondedReponsePort());
+							    			objCommand.put("server_info", server_info);
 							    			mTransferClientCallback.onTransferClientCommand(TransferClient.this, objCommand);
 							    		}
 					    			}
@@ -165,8 +171,8 @@ public class TransferClient {
 					    			if (mDestinationClient != null) {
 					    				mDestinationClient.transferBuffer(buffer, 0, length);
 					    			} else {
-					    				Log.PrintLog(TAG, "stop request client as no response client to transfer buffer");
-					    				if (mTransferClientCallback != null) {
+					    				Log.PrintLog(TAG, "Received no Recognised ROLE_REPONSE client");
+					    				/*if (mTransferClientCallback != null) {
 							    			JSONObject objCommand = new JSONObject();
 							    			objCommand.put("command", "status");
 							    			objCommand.put("role", mClientRole);
@@ -175,7 +181,7 @@ public class TransferClient {
 							    			objCommand.put("port", getRemotePort());
 							    			mTransferClientCallback.onTransferClientCommand(TransferClient.this, objCommand);
 							    		}
-					    				break;
+					    				break;*/
 					    			}
 					    		}
 					    	}
@@ -389,17 +395,35 @@ public class TransferClient {
 			if (mClientRole == null) {
 				mClientRole = ROLE_REQUEST;
 			}
-			if (mClientInfomation == null) {
-				mClientInfomation = new JSONObject();
-				mClientInfomation.put("role", ROLE_REQUEST);
-				mClientInfomation.put("name", ROLE_REQUEST);
-				mClientInfomation.put("request_client_nat_address", getRemoteInetAddress());
-				mClientInfomation.put("request_client_nat_port", getRemotePort());
-			}
-		} else if (mess != null && mess.startsWith("parseInformation")) {
+		} else {
 			if (mClientRole == null) {
 				mClientRole = ROLE_REPONSE;
 			}
+		}
+		if (mClientInfomation == null) {
+			mClientInfomation = new JSONObject();
+			mClientInfomation.put("client_role", mClientRole);
+			mClientInfomation.put("name", ROLE_REQUEST);
+			mClientInfomation.put("request_client_nat_address", getRemoteInetAddress());
+			mClientInfomation.put("request_client_nat_port", getRemotePort());
+		}
+		//client first data packet
+		if (mTransferClientCallback != null) {
+			JSONObject objCommand = new JSONObject();
+			objCommand.put("command", "status");
+			JSONObject statusJson = new JSONObject();
+			statusJson.put("action", "recognize_" + mClientRole + "_client");
+			statusJson.put("client_role", mClientRole);
+			JSONObject client_info = new JSONObject();
+			client_info.put("connected_server_address", "0.0.0.0");
+			client_info.put("connected_server_port", getLocalPort());
+			client_info.put("client_nat_address", getRemoteInetAddress());
+			client_info.put("client_nat_port", getRemotePort());
+			client_info.put("bonded_response_server_address", mTransferServer.getBondedReponseAddress());
+			client_info.put("bonded_response_server_port", mTransferServer.getBondedReponsePort());
+			statusJson.put("client_info", client_info);
+			objCommand.put("status", statusJson);
+			mTransferClientCallback.onTransferClientCommand(TransferClient.this, objCommand);
 		}
 	}
 	
