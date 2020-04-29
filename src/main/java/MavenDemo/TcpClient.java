@@ -65,7 +65,6 @@ public class TcpClient {
 			Log.PrintLog(TAG, "onTransferClientCommand data = " + data);
 			if (client != null) {
 				if (data != null && data.length() > 0) {
-					data.put("action", "transfer_client_command");
 					sendMessage(data.toString());
 				}
 			}
@@ -380,6 +379,7 @@ public class TcpClient {
 					if (mClientCallback != null) {
 						mClientCallback.onClientConnect(this, mClientInfomation);
 					}
+					result = command.toString();
 				}
 			} catch (Exception e) {
 				Log.PrintError(TAG, "parseInformation getString name Exception = " + e.getMessage());

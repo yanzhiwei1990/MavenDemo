@@ -348,18 +348,33 @@ public class TransferClient {
 		String result = "unknown";
 		if (data != null && data.length() > 0) {
 			//connect to transfer server and report related infomation
-			//{"command":"information","information":{"name":"response_tranfer_client","mac_address":"10-7B-44-15-2D-B6","dhcp_address":"192.168.188.150","dhcp_port":50001,"request_client_nat_address":"114.82.25.165","request_client_nat_port":50000,"connected_transfer_server_address":"opendiylib.com","connected_transfer_server_port":19911}}
-
+			/*
+			{
+				"command":"information",
+				"information":
+					{
+						"name":"response_request_client",
+						"mac_address":"10-7B-44-15-2D-B6",
+						"client_role":"request",
+						"request_client_nat_address","58.246.136.202",
+						"request_client_nat_port":5555,
+						"dhcp_address","192.168.188.150",
+						"dhcp_port":5555,
+						"connected_transfer_server_address":"opendiylib.com",
+						"connected_transfer_server_port":19910,
+						"connected_server_address":"opendiylib.com",
+						"connected_server_port":19920
+					}
+			}
+			*/
 			mClientInfomation = data.getJSONObject("information");
 			try {
-				result = "parseInformation_" + mClientInfomation.getString("name") + "_" + mClientInfomation.getString("mac_address") + "_ok";
-				//add role
-				mClientInfomation.put("role", ROLE_REPONSE);
-				//add nat address
-				mClientInfomation.put("response_client_nat_address", getRemoteInetAddress());
-				mClientInfomation.put("response_client_nat_port", getRemotePort());
-				if (mClientCallback != null) {
-					mClientCallback.onClientConnect(TransferClient.this, mClientInfomation);
+				if (mClientInfomation != null && mClientInfomation.length() > 0) {
+					//add nat address
+					mClientInfomation.put("client_role", ROLE_REPONSE);
+					mClientInfomation.put("request_client_nat_address", getRemoteInetAddress());
+					mClientInfomation.put("request_client_nat_port", getRemotePort());
+					result = "no_need_feedback";
 				}
 			} catch (Exception e) {
 				//Log.PrintError(TAG, "parseInformation getString name Exception = " + e.getMessage());
@@ -404,26 +419,21 @@ public class TransferClient {
 			mClientInfomation = new JSONObject();
 			mClientInfomation.put("client_role", mClientRole);
 			mClientInfomation.put("name", ROLE_REQUEST);
-			mClientInfomation.put("request_client_nat_address", getRemoteInetAddress());
-			mClientInfomation.put("request_client_nat_port", getRemotePort());
+			mClientInfomation.put("nat_address", getRemoteInetAddress());
+			mClientInfomation.put("nat_port", getRemotePort());
+			mClientInfomation.put("connected_transfer_server_address", MainDemo.FIXED_HOST_SITE);
+			mClientInfomation.put("connected_transfer_server_port", getLocalPort());
 		}
 		//client first data packet
 		if (mTransferClientCallback != null) {
-			JSONObject objCommand = new JSONObject();
-			objCommand.put("command", "status");
-			JSONObject statusJson = new JSONObject();
-			statusJson.put("action", "recognize_" + mClientRole + "_client");
-			statusJson.put("client_role", mClientRole);
-			JSONObject client_info = new JSONObject();
-			client_info.put("connected_server_address", "0.0.0.0");
-			client_info.put("connected_server_port", getLocalPort());
-			client_info.put("client_nat_address", getRemoteInetAddress());
-			client_info.put("client_nat_port", getRemotePort());
-			client_info.put("bonded_response_server_address", mTransferServer.getBondedReponseAddress());
-			client_info.put("bonded_response_server_port", mTransferServer.getBondedReponsePort());
-			statusJson.put("client_info", client_info);
-			objCommand.put("status", statusJson);
-			mTransferClientCallback.onTransferClientCommand(TransferClient.this, objCommand);
+			JSONObject command = new JSONObject();
+			command.put("command", "result");
+			JSONObject resultJson = new JSONObject();
+			resultJson.put("status", "connected_to_transfer_server");
+			resultJson.put("information", mClientInfomation);
+			command.put("result", resultJson);
+			mTransferClientCallback.onTransferClientCommand(TransferClient.this, command);
+			sendMessage(command.toString());
 		}
 	}
 	
