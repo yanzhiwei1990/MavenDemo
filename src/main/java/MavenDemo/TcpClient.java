@@ -103,7 +103,7 @@ public class TcpClient {
 				    		inMsg = new String(buffer, 0, length, Charset.forName("UTF-8")).trim();
 					    	Log.PrintLog(TAG, "Received from  client: " + inMsg);
 					    	outMsg = dealCommand(inMsg);
-					    	if (!"no_need_feedback".equals(outMsg)) {
+					    	if (!"no_need_feedback".equals(outMsg) && !"unknown".equals(outMsg)) {
 						    	sendMessage(outMsg);
 					    	}
 					    	Log.PrintLog(TAG, "Received client out: " + outMsg);
@@ -427,7 +427,7 @@ public class TcpClient {
 				if (address != null && address.length() > 0 && port != -1 && bondedReponseAddress != null && bondedReponseAddress.length() > 0 && bondedReponsePort != -1) {
 					if (!isTransferServerExist(address, port)) {
 						result = "parseStartNewServer_" + address + ":" + port + "_ok";
-						TransferServer transferServer = new TransferServer(address, port, bondedReponseAddress, bondedReponsePort);
+						TransferServer transferServer = new TransferServer(mExecutorService, address, port, bondedReponseAddress, bondedReponsePort);
 						transferServer.setClientCallback(mTransferServerCallback);
 						transferServer.setTransferClientCallback(mTransferClientCallback);
 						transferServer.startServer();

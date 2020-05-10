@@ -27,7 +27,7 @@ public class TransferClient {
 	public static final String TAG = TransferClient.class.getSimpleName() + " : %s\n";
 	
 	private Socket mClientSocket = null;
-	private TransferClient mDestinationClient = null;
+	//private TransferClient mDestinationClient = null;
 	private TransferServer mTransferServer = null;
 	private ClientCallback mClientCallback = null;
 	private ExecutorService mExecutorService = null;
@@ -37,7 +37,7 @@ public class TransferClient {
 	private BufferedOutputStream mSocketWriter = null;
 	private JSONObject mClientInfomation = null;//add mac address as name
 	private JSONObject mClientStatus = null;//online offline
-	private boolean isRunning = false;
+	private boolean mIsRunning = false;
 	private InetAddress mRemoteAddress = null;
 	private InetAddress mLocalAddress = null;
 	private boolean mRecognised = false;
@@ -62,6 +62,7 @@ public class TransferClient {
 				Log.PrintError(TAG, "accept getOutputStream Exception = " + e.getMessage());
 			}
 			if (mInputStream != null && mOutputStream != null) {
+				Log.PrintLog(TAG, "receive 0000");
 				String inMsg = null;
 				String outMsg = null;
 				byte[] buffer = new byte[1024 * 1024];
@@ -69,9 +70,16 @@ public class TransferClient {
 				mSocketReader = new BufferedInputStream(mInputStream, buffer.length);
 				mSocketWriter = new BufferedOutputStream(mOutputStream, buffer.length);
 
-				while (isRunning) {
+				while (mIsRunning) {
+					Log.PrintLog(TAG, "receive while isRunning");
 					try {
-					    while ((length = mSocketReader.read(buffer, 0, buffer.length)) != -1) {
+					    while (true) {
+					    	Log.PrintLog(TAG, "receive while true");
+					    	length = mSocketReader.read(buffer, 0, buffer.length);
+					    	if (length == -1) {
+					    		Log.PrintLog(TAG, "receive length == -1");
+					    		break;
+					    	}
 					    	if (length <= 1024) {
 					    		try {
 					    			inMsg = new String(buffer, 0, length, Charset.forName("UTF-8")).trim();
@@ -80,19 +88,18 @@ public class TransferClient {
 									Log.PrintError(TAG, "parse first 256 bytes error");
 								}
 					    		outMsg = dealCommand(inMsg);
-					    		if (!"no_need_feedback".equals(outMsg)) {
-					    			Log.PrintLog(TAG, "Received from inMsg = " + inMsg + ", outMsg = " + outMsg);
+					    		if (!"no_need_feedback".equals(outMsg) && !"unknown".equals(outMsg)) {
+					    			Log.PrintLog(TAG, "Received dealt outMsg = " + outMsg);
 					    			JSONObject result = new JSONObject();
 							    	result.put("command", "status");
 							    	result.put("status", outMsg);
 							    	sendMessage(result.toString());
-					    		} else {
-					    			outMsg = "unknown";
 					    		}
 					    	} else {
 					    		outMsg = "unknown";
 					    	}
-					    	Log.PrintLog(TAG, "length = " + length + ", inMsg = " + inMsg + ",outMsg = " + outMsg);
+					    	Log.PrintLog(TAG, "receive 1111 " + mClientRole + ", length = " + length);
+					    	//Log.PrintLog(TAG, "length = " + length + ", inMsg = " + inMsg + ",outMsg = " + outMsg);
 					    	if (!mRecognised) {
 					    		mRecognised = true;
 					    		parseClientRole(outMsg);
@@ -102,15 +109,15 @@ public class TransferClient {
 					    		Log.PrintLog(TAG, "Received Recognised mClientInfomation = " + mClientInfomation);
 					    	}
 					    	if ("unknown".equals(outMsg)) {
+					    		Log.PrintLog(TAG, "receive unknown");
 					    		//need to transfer
 					    		if (ROLE_REPONSE.equals(mClientRole)) {
-					    			if (mDestinationClient == null) {
-					    				mDestinationClient = mTransferServer.getTransferClient(ROLE_REQUEST, getRequestClientInetAddress(), getRequestClientPort());
-					    			}
-					    			if (mDestinationClient != null) {
-					    				mDestinationClient.transferBuffer(buffer, 0, length);
+					    			Log.PrintLog(TAG, "receive 2222 ROLE_REPONSE");
+					    			if (mTransferServer.mRequestTransferClient != null) {
+					    				Log.PrintLog(TAG, "Received found ROLE_REQUEST client");
+					    				mTransferServer.mRequestTransferClient.transferBuffer(buffer, 0, length);
 					    			}  else {
-					    				Log.PrintLog(TAG, "Received no Recognised ROLE_REQUEST client");
+					    				Log.PrintLog(TAG, "Received wait ROLE_REQUEST client");
 					    				/*if (mTransferClientCallback != null) {
 							    			JSONObject objCommand = new JSONObject();
 							    			objCommand.put("command", "status");
@@ -123,9 +130,10 @@ public class TransferClient {
 					    				break;*/
 					    			}
 					    		} else {
+					    			Log.PrintLog(TAG, "receive 3333 ROLE_REQUEST");
 					    			//request client need to wait for respponse client ready
-					    			int count = 30;
-					    			if (mDestinationClient == null) {
+					    			int count = 50;
+					    			if (mTransferServer.mResponseTransferClient == null) {
 					    				if (mTransferClientCallback != null) {
 					    					//request client in and tell response client to start connect to transfer server to transfer request
 					    					/*
@@ -155,9 +163,10 @@ public class TransferClient {
 							    			mTransferClientCallback.onTransferClientCommand(TransferClient.this, objCommand);
 							    		}
 					    			}
-					    			while (mDestinationClient == null) {
-					    				delayMs(1000);
-					    				mDestinationClient = mTransferServer.getTransferClient(ROLE_REPONSE, getRemoteInetAddress(), getRemotePort());
+					    			while (mTransferServer.mResponseTransferClient == null) {
+					    				Log.PrintLog(TAG, "Received wait ROLE_REPONSE client");
+					    				delayMs(100);
+					    				//mDestinationClient = mTransferServer.getTransferClient(ROLE_REPONSE, getRemoteInetAddress(), getRemotePort());
 					    				count--;
 					    				if (count < 0) {
 					    					Log.PrintLog(TAG, "wait response client 30s time out");
@@ -167,11 +176,14 @@ public class TransferClient {
 					    			if (count < 0) {
 					    				Log.PrintLog(TAG, "stop request client as time out");
 					    				break;
-					    			}
-					    			if (mDestinationClient != null) {
-					    				mDestinationClient.transferBuffer(buffer, 0, length);
 					    			} else {
-					    				Log.PrintLog(TAG, "Received no Recognised ROLE_REPONSE client");
+					    				Log.PrintLog(TAG, "response time out count = " + count);
+					    			}
+					    			if (mTransferServer.mResponseTransferClient != null) {
+					    				Log.PrintLog(TAG, "Received found ROLE_REPONSE client");
+					    				mTransferServer.mResponseTransferClient.transferBuffer(buffer, 0, length);
+					    			} else {
+					    				Log.PrintLog(TAG, "Received no found ROLE_REPONSE client");
 					    				/*if (mTransferClientCallback != null) {
 							    			JSONObject objCommand = new JSONObject();
 							    			objCommand.put("command", "status");
@@ -184,21 +196,24 @@ public class TransferClient {
 					    				break;*/
 					    			}
 					    		}
+					    	} else {
+					    		Log.PrintLog(TAG, "receive not unkown");
 					    	}
 					    }
-					    Log.PrintLog(TAG, "startListener disconnect");
+					    Log.PrintLog(TAG, "startListener disconnect " + mClientRole);
 					   
 					} catch(Exception e) {
 						Log.PrintError(TAG, "accept Exception = " + e.getMessage());
 						e.printStackTrace();
 						break;
 					}
+					Log.PrintLog(TAG, "receive isRunning break");
 					break;
 				}
 			} else {
 				Log.PrintError(TAG, "accept get stream error");
 			}
-			Log.PrintLog(TAG, "stop accept");
+			Log.PrintLog(TAG, "stop accept " + mClientRole);
 			dealClearWork();
 		}
 	};
@@ -222,13 +237,13 @@ public class TransferClient {
 	
 	public void startListen() {
 		Log.PrintLog(TAG, "startListen");
-		isRunning = true;
+		mIsRunning = true;
 		mExecutorService.submit(mStartListener);
 	}
 	
 	public void stopListen() {
 		Log.PrintLog(TAG, "stopListen");
-		isRunning = false;
+		mIsRunning = false;
 		closeSocket();
 		if (mClientCallback != null) {
 			mClientCallback.onClientDisconnect(this, null);
@@ -364,6 +379,8 @@ public class TransferClient {
 						"connected_transfer_server_port":19910,
 						"connected_server_address":"opendiylib.com",
 						"connected_server_port":19920
+						"nat_address":"",
+						"nat_port":-1
 					}
 			}
 			*/
@@ -372,8 +389,16 @@ public class TransferClient {
 				if (mClientInfomation != null && mClientInfomation.length() > 0) {
 					//add nat address
 					mClientInfomation.put("client_role", ROLE_REPONSE);
-					mClientInfomation.put("request_client_nat_address", getRemoteInetAddress());
-					mClientInfomation.put("request_client_nat_port", getRemotePort());
+					mClientInfomation.put("nat_address", getRemoteInetAddress());
+					mClientInfomation.put("nat_port", getRemotePort());
+					
+					JSONObject command = new JSONObject();
+					command.put("command", "result");
+					JSONObject resultJson = new JSONObject();
+					resultJson.put("status", "connected_to_fixed_server");
+					resultJson.put("information", mClientInfomation);
+					command.put("result", resultJson);
+
 					result = "no_need_feedback";
 				}
 			} catch (Exception e) {
@@ -429,11 +454,22 @@ public class TransferClient {
 			JSONObject command = new JSONObject();
 			command.put("command", "result");
 			JSONObject resultJson = new JSONObject();
-			resultJson.put("status", "connected_to_transfer_server");
 			resultJson.put("information", mClientInfomation);
-			command.put("result", resultJson);
 			mTransferClientCallback.onTransferClientCommand(TransferClient.this, command);
-			sendMessage(command.toString());
+			if (ROLE_REPONSE.equals(mClientRole)) {
+				resultJson.put("status", "request_response_connected_to_transfer_server");
+				command.put("result", resultJson);
+				if (mTransferServer.mResponseTransferClient == null) {
+    				mTransferServer.mResponseTransferClient = TransferClient.this;
+    			}
+				sendMessage(command.toString());
+			} else {
+				resultJson.put("status", "request_request_connected_to_transfer_server");
+				command.put("result", resultJson);
+				if (mTransferServer.mRequestTransferClient == null) {
+    				mTransferServer.mRequestTransferClient = TransferClient.this;
+    			}
+			}
 		}
 	}
 	
@@ -453,11 +489,11 @@ public class TransferClient {
 	}
 	
 	private void dealClearWork() {
-		Log.PrintLog(TAG, "closeStream isRunning = " + isRunning);
-		if (isRunning) {
+		Log.PrintLog(TAG, "closeStream isRunning = " + mIsRunning);
+		if (mIsRunning) {
 			closeSocket();
 			closeStream();
-			isRunning = false;
+			mIsRunning = false;
 		} else {
 			closeStream();
 		}

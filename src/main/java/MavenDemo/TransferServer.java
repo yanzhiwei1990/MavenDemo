@@ -26,7 +26,6 @@ public class TransferServer {
 	
 	private static final String TAG = TransferServer.class.getSimpleName() + " : %s\n";
 	private static final boolean DEBUG  = Debug.TCPSERVER;
-	private static final int MAX_THREAD = 10;
 	private ServerSocket mServerSocket = null;
 	private String mTcpAddress = null;
 	private int mTcpPort = -1;
@@ -37,6 +36,8 @@ public class TransferServer {
 	private List<TransferClient> mTransferClients = /*new ArrayList<TransferClient>();*/Collections.synchronizedList(new ArrayList<TransferClient>());
 	private TransferServerCallback mTransferServerCallback = null;
 	private TransferClientCallback mTransferClientCallback = null;
+	public TransferClient mRequestTransferClient = null;
+	public TransferClient mResponseTransferClient = null;
 	private ClientCallback mClientCallback = new ClientCallback() {
 		
 		public void onClientDisconnect(TransferClient client, JSONObject data) {
@@ -76,12 +77,12 @@ public class TransferServer {
 		}
 	};
 	
-	public TransferServer(String address, int port, String bondedAddress, int bondedPort) {
+	public TransferServer(ExecutorService executorService, String address, int port, String bondedAddress, int bondedPort) {
 		mTcpAddress = address;
 		mTcpPort = port;
 		mBondedResponseAddress = bondedAddress;
 		mBondedResponsePort = bondedPort;
-		mExecutorService = Executors.newFixedThreadPool(MAX_THREAD);
+		mExecutorService = executorService;
 	}
 	
 	public void setClientCallback(TransferServerCallback callback) {
@@ -106,7 +107,7 @@ public class TransferServer {
 			try {
 				mServerSocket = new ServerSocket();
 				mServerSocket.setReuseAddress(true);
-			    mServerSocket.bind(new InetSocketAddress(mTcpAddress, mTcpPort), MAX_THREAD);
+			    mServerSocket.bind(new InetSocketAddress(mTcpAddress, mTcpPort));
 			} catch (IOException e) {
 				mServerSocket = null;
 				Log.PrintError(TAG, "startServer bind Exception = " + e.getMessage());
