@@ -21,7 +21,7 @@ public class TcpServer {
 	
 	private static final String TAG = TcpServer.class.getSimpleName() + " : %s\n";
 	private static final boolean DEBUG  = Debug.TCPSERVER;
-	private static final int MAX_THREAD = 100;
+	private static final int MAX_THREAD = 10;
 	private ServerSocket mServerSocket = null;
 	private String mTcpAddress = null;
 	private int mTcpPort = -1;
@@ -31,12 +31,12 @@ public class TcpServer {
 	private ClientCallback mClientCallback = new ClientCallback() {
 		
 		public void onClientDisconnect(TcpClient client, JSONObject data) {
-			// TODO Auto-generated method stub
+			Log.PrintLog(TAG, "startSeonClientDisconnectrver client = " + client);
 			removeTcpClient(client);
 		}
 		
 		public void onClientConnect(TcpClient client, JSONObject data) {
-			// TODO Auto-generated method stub
+			Log.PrintLog(TAG, "onClientConnect client = " + client);
 			addTcpClient(client);
 		}
 	};
@@ -68,6 +68,7 @@ public class TcpServer {
 	
 	public  void startServer() {
 		if (mTcpAddress != null && mTcpAddress.length() > 0 && mTcpPort > 0) {
+			Log.PrintLog(TAG, "startServer");
 			if (mServerSocket != null) {
 				try {
 					mServerSocket.close();
@@ -144,5 +145,14 @@ public class TcpServer {
 	public interface ClientCallback {
 		void onClientConnect(TcpClient client, JSONObject data);
 		void onClientDisconnect(TcpClient client, JSONObject data);
+	}
+	
+	@Override
+	public String toString() {
+		String result = "unkown";
+		if (mTcpAddress != null) {
+			result = mTcpAddress + ":" + mTcpPort;
+		}
+		return result;
 	}
 }

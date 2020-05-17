@@ -30,8 +30,6 @@ public class TcpClient {
 	private ExecutorService mExecutorService = null;
 	private InputStream mInputStream = null;
 	private OutputStream mOutputStream = null;
-	//private BufferedReader mSocketReader = null;
-	//private BufferedWriter mSocketWriter = null;
 	private BufferedInputStream mSocketReader = null;
 	private BufferedOutputStream mSocketWriter = null;
 	private JSONObject mClientInfomation = null;//add mac address as name
@@ -42,18 +40,20 @@ public class TcpClient {
 
 		@Override
 		public void onTransferServerConnect(TransferServer server, JSONObject data) {
+			Log.PrintLog(TAG, "onTransferClientCommand server = " + server);
 			addTransferServer(server);
-			if (data != null && data.length() > 0) {
+			/*if (data != null && data.length() > 0) {
 				sendMessage(data.toString());
-			}
+			}*/
 		}
 
 		@Override
 		public void onTransferServerDisconnect(TransferServer server, JSONObject data) {
+			Log.PrintLog(TAG, "onTransferServerDisconnect server = " + server);
 			removeTransferServer(server);
-			if (data != null && data.length() > 0) {
+			/*if (data != null && data.length() > 0) {
 				sendMessage(data.toString());
-			}
+			}*/
 		}
 	};
 	
@@ -62,7 +62,7 @@ public class TcpClient {
 		@Override
 		public void onTransferClientCommand(TransferClient client, JSONObject data) {
 			// TODO Auto-generated method stub
-			Log.PrintLog(TAG, "onTransferClientCommand data = " + data);
+			Log.PrintLog(TAG, "onTransferClientCommand client = " + client);
 			if (client != null) {
 				if (data != null && data.length() > 0) {
 					sendMessage(data.toString());
@@ -87,8 +87,6 @@ public class TcpClient {
 				Log.PrintError(TAG, "accept getOutputStream Exception = " + e.getMessage());
 			}
 			if (mInputStream != null && mOutputStream != null) {
-				//mSocketReader = new BufferedReader(new InputStreamReader(mInputStream, Charset.forName("UTF-8")));
-				//mSocketWriter = new BufferedWriter(new OutputStreamWriter(mOutputStream));
 				byte[] buffer = new byte[1024 * 1024];
 				int length = -1;
 				mSocketReader = new BufferedInputStream(mInputStream, buffer.length);
@@ -98,15 +96,19 @@ public class TcpClient {
 				JSONObject result = null;
 				while (isRunning) {
 					try {
-					    //while ((inMsg = mSocketReader.readLine()) != null) {
 				    	while ((length = mSocketReader.read(buffer, 0, buffer.length)) != -1) {
-				    		inMsg = new String(buffer, 0, length, Charset.forName("UTF-8")).trim();
-					    	Log.PrintLog(TAG, "Received from  client: " + inMsg);
+				    		try {
+				    			inMsg = new String(buffer, 0, length, Charset.forName("UTF-8")).trim();
+							} catch (Exception e) {
+								Log.PrintError(TAG, "receive Exception " + e.getMessage());
+								inMsg = null;
+							}
+				    		Log.PrintLog(TAG, "receive inMsg=" + inMsg);
 					    	outMsg = dealCommand(inMsg);
-					    	if (!"no_need_feedback".equals(outMsg) && !"unknown".equals(outMsg)) {
+					    	/*if (!"no_need_feedback".equals(outMsg) && !"unknown".equals(outMsg)) {
 						    	sendMessage(outMsg);
-					    	}
-					    	Log.PrintLog(TAG, "Received client out: " + outMsg);
+					    	}*/
+					    	Log.PrintLog(TAG, "receive outMsg=" + outMsg);
 					    }
 					    Log.PrintLog(TAG, "startListener disconnect");
 					   
@@ -303,6 +305,7 @@ public class TcpClient {
 		String command = null;
 		JSONObject obj = null;
 		if (data != null) {
+			Log.PrintLog(TAG, "dealCommand " + data);
 			try {
 				obj = new JSONObject(data);
 			} catch (Exception e) {
@@ -313,28 +316,35 @@ public class TcpClient {
 					command = obj.getString("command");
 				} catch (Exception e) {
 					Log.PrintError(TAG, "dealCommand getString command Exception = " + e.getMessage());
-					Log.PrintLog(TAG, "dealCommand not json:" + data);
 				}
 				switch (command) {
 					case "information":
+						Log.PrintLog(TAG, "dealCommand information");
 						result = parseInformation(obj);
 						break;
 					case "start_new_transfer_server":
+						Log.PrintLog(TAG, "dealCommand start_new_transfer_server");
 						result = parseStartNewTransferServer(obj);
 						break;
 					case "stop_transfer_server":
+						Log.PrintLog(TAG, "dealCommand stop_transfer_server");
 						result = parseStopTransferServer(obj);
 						break;
 					case "status":
+						Log.PrintLog(TAG, "dealCommand status");
 						result = parseStatus(obj);
 						break;
 					case "result":
+						Log.PrintLog(TAG, "dealCommand result");
 						result = parseResult(obj);
 						break;
 					default:
+						Log.PrintLog(TAG, "dealCommand default");
 						break;
 				}
 			}
+		} else {
+			Log.PrintLog(TAG, "dealCommand null data");
 		}
 		return result;
 	}
@@ -342,7 +352,6 @@ public class TcpClient {
 	private String parseInformation(JSONObject data) {
 		String result = "unknown";
 		if (data != null && data.length() > 0) {
-			mClientInfomation = data.getJSONObject("information");
 			try {
 				/*
 				{
@@ -366,6 +375,7 @@ public class TcpClient {
 						
 				}
 				*/
+				mClientInfomation = data.getJSONObject("information");
 				if (mClientInfomation != null && mClientInfomation.length() > 0) {
 					//add nat address
 					mClientInfomation.put("response_fixed_client_nat_address", getRemoteInetAddress());
@@ -377,9 +387,10 @@ public class TcpClient {
 					resultJson.put("information", mClientInfomation);
 					command.put("result", resultJson);
 					if (mClientCallback != null) {
-						mClientCallback.onClientConnect(this, mClientInfomation);
+						mClientCallback.onClientConnect(this, null);
 					}
-					result = command.toString();
+					sendMessage(command.toString());
+					result = "no_need_feedback";
 				}
 			} catch (Exception e) {
 				Log.PrintError(TAG, "parseInformation getString name Exception = " + e.getMessage());
@@ -397,7 +408,18 @@ public class TcpClient {
 		int bondedReponsePort = -1;
 		if (data != null && data.length() > 0) {
 			////request a new transfer server
-			//{"command":"start_new_transfer_server","server_info":{"new_transfer_server_address":"opendiylib.com","new_transfer_server_port":19909,"bonded_response_server_address":"192.168.188.150","bonded_response_server_port":19911}}
+			/*
+			{
+				"command":"start_new_transfer_server",
+				"server_info":
+					{
+						"new_transfer_server_address":"0.0.0.0",
+						"new_transfer_server_port":19920,
+						"bonded_response_server_address","192.168.188.150"
+						"bonded_response_server_port":19920
+					}
+			}
+			*/
 			try {
 				serverObj = data.getJSONObject("server_info");
 			} catch (Exception e) {
@@ -445,8 +467,7 @@ public class TcpClient {
 											"bonded_response_server_port":19920
 										}
 								}
-							}
-								
+							}	
 						}
 						*/
 						JSONObject command = new JSONObject();
@@ -455,7 +476,11 @@ public class TcpClient {
 						resultJson.put("status", "new_transfer_server_started");
 						resultJson.put("server_info", serverObj);
 						command.put("result", resultJson);
-						result = command.toString();
+						if (mTransferClientCallback != null) {
+							mTransferClientCallback.onTransferClientCommand(null, command);
+						}
+						//result = command.toString();
+						result = "no_need_feedback";
 					} else {
 						/*
 						{
@@ -473,15 +498,18 @@ public class TcpClient {
 								}
 							}
 								
-						}
-						*/
+						}*/
 						JSONObject command = new JSONObject();
 						command.put("command", "result");
 						JSONObject resultJson = new JSONObject();
 						resultJson.put("status", "transfer_server_existed");
 						resultJson.put("server_info", serverObj);
 						command.put("result", resultJson);
-						result = command.toString();
+						if (mTransferClientCallback != null) {
+							mTransferClientCallback.onTransferClientCommand(null, command);
+						}
+						//result = command.toString();
+						result = "no_need_feedback";
 						Log.PrintLog(TAG, "parseStartNewServer exist server = " + serverObj);
 					}
 				}
@@ -628,5 +656,29 @@ public class TcpClient {
 	
 	public interface TransferClientCallback {
 		void onTransferClientCommand(TransferClient client, JSONObject data);
+	}
+	
+	@Override
+	public String toString() {
+		String result = "unkown";
+		if (mClientInfomation != null) {
+			try {
+				result = mClientInfomation.getString("name");
+			} catch (Exception e) {
+				result = "unkown";
+				Log.PrintError(TAG, "toString getString name Exception = " + e.getMessage());
+			}
+			try {
+				if ("unkown".equals(result)) {
+					result = mClientInfomation.getString("mac_address");
+				} else {
+					result = result + ":" + mClientInfomation.getString("mac_address");
+				}
+			} catch (Exception e) {
+				result = "unkown";
+				Log.PrintError(TAG, "toString getString mac_address Exception = " + e.getMessage());
+			}
+		}
+		return result;
 	}
 }

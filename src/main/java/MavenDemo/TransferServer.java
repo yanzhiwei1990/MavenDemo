@@ -41,12 +41,12 @@ public class TransferServer {
 	private ClientCallback mClientCallback = new ClientCallback() {
 		
 		public void onClientDisconnect(TransferClient client, JSONObject data) {
-			// TODO Auto-generated method stub
+			Log.PrintLog(TAG, "onClientDisconnect client=" + client);
 			removeTransferClient(client);
 		}
 		
 		public void onClientConnect(TransferClient client, JSONObject data) {
-			// TODO Auto-generated method stub
+			Log.PrintLog(TAG, "onClientConnect client=" + client);
 			addTransferClient(client);
 		}
 	};
@@ -227,5 +227,14 @@ public class TransferServer {
 	public interface ClientCallback {
 		void onClientConnect(TransferClient client, JSONObject data);
 		void onClientDisconnect(TransferClient client, JSONObject data);
+	}
+	
+	@Override
+	public String toString() {
+		String result = "unkown";
+		if (mTcpAddress != null) {
+			result = mTcpAddress + ":" + mTcpPort + "->" + mBondedResponseAddress + ":" + mBondedResponsePort;
+		}
+		return result;
 	}
 }
