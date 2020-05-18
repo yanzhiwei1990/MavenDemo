@@ -103,12 +103,12 @@ public class TcpClient {
 								Log.PrintError(TAG, "receive Exception " + e.getMessage());
 								inMsg = null;
 							}
-				    		Log.PrintLog(TAG, "receive inMsg=" + inMsg);
+				    		//Log.PrintLog(TAG, "receive inMsg=" + inMsg);
 					    	outMsg = dealCommand(inMsg);
 					    	/*if (!"no_need_feedback".equals(outMsg) && !"unknown".equals(outMsg)) {
 						    	sendMessage(outMsg);
 					    	}*/
-					    	Log.PrintLog(TAG, "receive outMsg=" + outMsg);
+					    	//Log.PrintLog(TAG, "receive outMsg=" + outMsg);
 					    }
 					    Log.PrintLog(TAG, "startListener disconnect");
 					   

@@ -265,6 +265,26 @@ public class TransferClient {
 		}
 		return result;
 	}
+
+	public String getTransferServerAddress() {
+		String result = null;
+		try {
+			result = mClientInfomation.getString("connected_transfer_server_address");
+		} catch (Exception e) {
+			//Log.PrintError(TAG, "getNatAddress Exception = " + e.getMessage());
+		}
+		return result;
+	}
+	
+	public int getTransferServerPort() {
+		int result = -1;
+		try {
+			result = mClientInfomation.getInt("connected_transfer_server_port");
+		} catch (Exception e) {
+			//Log.PrintError(TAG, "getNatPort Exception = " + e.getMessage());
+		}
+		return result;
+	}
 	
 	public String getRequestClientInetAddress() {
 		String result = null;
@@ -597,13 +617,12 @@ public class TransferClient {
 				Log.PrintError(TAG, "toString  getString mac_address Exception = " + e.getMessage());
 			}
 			if (ROLE_REQUEST.equals(mClientRole)) {
-				result = result + "-" + mClientRole + "-" + getRemoteInetAddress() + ":" + getRemotePort() + "->" + getLocalInetAddress() + ":" + getLocalPort();
+				result = result + "-" + mClientRole + "-" + getRemoteInetAddress() + ":" + getRemotePort() + "->" + getTransferServerAddress() + ":" + getTransferServerPort();
 			} else if (ROLE_REPONSE.equals(mClientRole)) {
-				result = result + "-" + mClientRole + "-" + getLocalInetAddress() + ":" + getLocalPort() + "->" + getRemoteInetAddress() + ":" + getRemotePort();
+				result = result + "-" + mClientRole + "-" + getTransferServerAddress() + ":" + getTransferServerPort() + "->" + getRemoteInetAddress() + ":" + getRemotePort();
 			} else {
 				Log.PrintLog(TAG, "TransferClient other role");
 			}
-			
 		}
 		return result;
 	}

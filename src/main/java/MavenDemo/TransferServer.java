@@ -143,12 +143,12 @@ public class TransferServer {
 	}
 	
 	private void addTransferClient(TransferClient client) {
-		Log.PrintLog(TAG, "addTransferClient info = " + client.getClientInformation());
+		//Log.PrintLog(TAG, "addTransferClient info = " + client.getClientInformation());
 		mTransferClients.add(client);
 	}
 	
 	private void removeTransferClient(TransferClient client) {
-		Log.PrintLog(TAG, "removeTransferClient = " + client.getClientInformation());
+		//Log.PrintLog(TAG, "removeTransferClient = " + client.getClientInformation());
 		mTransferClients.remove(client);
 	}
 	

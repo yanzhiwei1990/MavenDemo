@@ -31,12 +31,12 @@ public class TcpServer {
 	private ClientCallback mClientCallback = new ClientCallback() {
 		
 		public void onClientDisconnect(TcpClient client, JSONObject data) {
-			Log.PrintLog(TAG, "startSeonClientDisconnectrver client = " + client);
+			Log.PrintLog(TAG, "startSeonClientDisconnectrver client " + client);
 			removeTcpClient(client);
 		}
 		
 		public void onClientConnect(TcpClient client, JSONObject data) {
-			Log.PrintLog(TAG, "onClientConnect client = " + client);
+			Log.PrintLog(TAG, "onClientConnect client " + client);
 			addTcpClient(client);
 		}
 	};
@@ -101,12 +101,12 @@ public class TcpServer {
 	}
 	
 	private void addTcpClient(TcpClient client) {
-		Log.PrintLog(TAG, "addTcpClient = " + client.getClientInformation());
+		//Log.PrintLog(TAG, "addTcpClient = " + client.getClientInformation());
 		mTcpClients.add(client);
 	}
 	
 	private void removeTcpClient(TcpClient client) {
-		Log.PrintLog(TAG, "removeTcpClient = " + client.getClientInformation());
+		//Log.PrintLog(TAG, "removeTcpClient = " + client.getClientInformation());
 		mTcpClients.remove(client);
 	}
 	
